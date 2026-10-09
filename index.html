@@ -1,0 +1,1511 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CASA TRADE 3D - Trading Floor & Chat de Agentes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;800&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; overflow: hidden; background: #05070e; color: #f8fafc; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        .receipt-font { font-family: 'Courier Prime', monospace; }
+        canvas { display: block; width: 100vw; height: 100vh; position: fixed; top: 0; left: 0; z-index: 1; }
+        .glass { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.12); }
+        .glass-panel { background: rgba(30, 41, 59, 0.9); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.15); box-shadow: 0 20px 50px rgba(0,0,0,0.7); }
+        .glow-red { box-shadow: 0 0 25px rgba(220, 38, 38, 0.5); }
+        .glow-emerald { box-shadow: 0 0 25px rgba(16, 185, 129, 0.5); }
+        
+        .paper-receipt {
+            background: #fbfbf8;
+            color: #1a1a1a;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        .paper-receipt::before, .paper-receipt::after {
+            content: "";
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 10px;
+            background-size: 16px 10px;
+        }
+        .paper-receipt::before {
+            top: -10px;
+            background-image: radial-gradient(circle at 8px 10px, transparent 8px, #fbfbf8 9px);
+        }
+        .paper-receipt::after {
+            bottom: -10px;
+            background-image: radial-gradient(circle at 8px 0px, transparent 8px, #fbfbf8 9px);
+        }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.5); }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 3px; }
+    </style>
+</head>
+<body class="w-screen h-screen relative select-none">
+
+    <div id="canvas-container" class="absolute inset-0 z-0"></div>
+
+    <!-- Header Principal -->
+    <header class="absolute top-4 left-4 right-4 z-20 flex flex-wrap justify-between items-center gap-4 pointer-events-none">
+        <div class="glass px-5 py-3 rounded-2xl flex items-center gap-4 pointer-events-auto shadow-2xl">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center glow-red text-white font-black text-xl shadow-lg">
+                <i class="fa-solid fa-building-shield"></i>
+            </div>
+            <div>
+                <h1 class="font-extrabold text-lg text-white tracking-wide flex items-center gap-2">
+                    CASA TRADE <span class="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30">3D DECISION ENGINE</span>
+                </h1>
+                <p class="text-xs text-slate-400 font-medium">Oficina Corporativa Avanzada & Chat de Agentes</p>
+            </div>
+        </div>
+
+        <div class="glass px-6 py-3 rounded-2xl flex items-center gap-4 pointer-events-auto shadow-2xl">
+            <button onclick="resetSimulation()" class="px-3.5 py-2 rounded-xl bg-red-800/80 hover:bg-red-600 text-xs font-bold text-white transition flex items-center gap-2 border border-red-500/40 shadow-lg" title="Reiniciar Balance e Historial sin Recargar">
+                <i class="fa-solid fa-rotate-right"></i> Reiniciar
+            </button>
+            <div class="h-8 w-px bg-white/10"></div>
+            <button onclick="toggleAgentChatPanel()" class="px-3.5 py-2 rounded-xl bg-red-600/80 hover:bg-red-500 text-xs font-bold text-white transition flex items-center gap-2 border border-red-500/30 shadow-lg glow-red">
+                <i class="fa-solid fa-comments"></i> Chat Agentes (<span id="chat-count">0</span>)
+            </button>
+            <button onclick="toggleHistoryPanel()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-white transition flex items-center gap-2 border border-white/10">
+                <i class="fa-solid fa-clock-rotate-left text-amber-400"></i> Historial (<span id="history-count">0</span>)
+            </button>
+            <div class="h-8 w-px bg-white/10"></div>
+            <div class="flex items-center gap-3">
+                <div id="ws-indicator" class="w-3 h-3 rounded-full bg-amber-500 animate-ping"></div>
+                <div>
+                    <div class="text-[10px] uppercase font-bold text-slate-400">Deriv Vol 10 (Tick Live)</div>
+                    <div class="flex items-center gap-2">
+                        <span id="ws-price" class="mono font-bold text-emerald-400 text-sm">--.--</span>
+                        <span id="ws-digit" class="px-2 py-0.5 rounded bg-red-600/30 text-red-400 mono font-extrabold text-xs border border-red-500/40">Ld: -</span>
+                    </div>
+                </div>
+            </div>
+            <div class="h-8 w-px bg-white/10"></div>
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+                    <i class="fa-solid fa-users"></i>
+                </div>
+                <div>
+                    <div class="text-[10px] uppercase font-bold text-slate-400">Aforo Total</div>
+                    <div id="people-count" class="mono font-black text-white text-sm">8 Personas</div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Panel de Edición de Cuenta, Stake y Contrato Over/Under -->
+    <div id="config-widget" class="absolute top-24 left-4 z-20 glass px-5 py-4 rounded-2xl shadow-2xl pointer-events-auto w-80 border border-white/10">
+        <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-xl bg-red-600/30 text-red-400 flex items-center justify-center font-bold border border-red-500/30">
+                    <i class="fa-solid fa-sliders"></i>
+                </div>
+                <div>
+                    <div class="text-xs font-extrabold text-white">Configuración de Contrato</div>
+                    <div class="text-[10px] text-emerald-400 font-bold">Gestión Dinámica de Balance</div>
+                </div>
+            </div>
+            <button onclick="resetSimulation()" class="text-slate-400 hover:text-white transition" title="Reiniciar Sistema">
+                <i class="fa-solid fa-arrow-rotate-left text-xs"></i>
+            </button>
+        </div>
+
+        <div class="space-y-3 pt-2 border-t border-white/10">
+            <div>
+                <div class="flex justify-between text-[11px] font-bold text-slate-400 mb-1">
+                    <span>Balance de Cuenta ($)</span>
+                    <span id="display-balance" class="mono text-emerald-400">$10,450.00</span>
+                </div>
+                <input type="number" id="input-balance" value="10450" step="0.01" oninput="updateAccountValues()" class="w-full bg-slate-900/90 border border-white/20 rounded-xl px-3 py-1.5 mono text-sm text-white focus:border-red-500 focus:outline-none transition">
+            </div>
+
+            <div>
+                <div class="flex justify-between text-[11px] font-bold text-slate-400 mb-1">
+                    <span>Stake / Inversión ($)</span>
+                    <span id="display-stake" class="mono text-red-400">$10.00</span>
+                </div>
+                <input type="number" id="input-stake" value="10" min="1" step="0.5" oninput="updateAccountValues()" class="w-full bg-slate-900/90 border border-white/20 rounded-xl px-3 py-1.5 mono text-sm text-white focus:border-red-500 focus:outline-none transition">
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 pt-1">
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 block mb-1">Tipo de Contrato</label>
+                    <select id="contract-type" onchange="updateAccountValues()" class="w-full bg-slate-900 border border-white/20 rounded-xl px-2.5 py-1.5 text-xs text-white mono font-bold focus:outline-none">
+                        <option value="OVER">DIGIT OVER</option>
+                        <option value="UNDER">DIGIT UNDER</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 block mb-1">Predicción (Dígit)</label>
+                    <select id="contract-digit" onchange="updateAccountValues()" class="w-full bg-slate-900 border border-white/20 rounded-xl px-2.5 py-1.5 text-xs text-amber-400 mono font-bold focus:outline-none">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                        <option value="6" selected>6</option>
+                        <option value="7">7</option>
+                        <option value="8">8</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="bg-slate-900/80 p-2.5 rounded-xl border border-white/5 flex justify-between items-center text-xs">
+                <span class="text-slate-400 font-semibold">Payout Estimado:</span>
+                <span id="estimated-payout" class="mono font-bold text-emerald-400">+42.8% ($14.28)</span>
+            </div>
+
+            <div>
+                <div class="flex justify-between text-[11px] font-bold text-slate-400 mb-1">
+                    <span>Mín. Confidencia de Entrada</span>
+                    <span id="display-confidence" class="mono text-amber-400">75%</span>
+                </div>
+                <input type="range" id="input-confidence" min="50" max="99" value="75" oninput="updateConfidenceValue()" class="w-full accent-red-600 cursor-pointer">
+            </div>
+
+            <button onclick="resetSimulation()" class="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition border border-white/10 flex items-center justify-center gap-2">
+                <i class="fa-solid fa-arrow-rotate-left"></i> Restablecer Valores Iniciales
+            </button>
+        </div>
+    </div>
+
+    <!-- CHAT FLOTANTE Y OCULTABLE DE AGENTES -->
+    <div id="agent-chat-panel" class="absolute top-24 right-4 w-96 glass-panel rounded-3xl p-5 z-40 transition-all duration-300 translate-x-[110%] opacity-0 pointer-events-none max-h-[78vh] flex flex-col border border-red-500/30">
+        <div class="flex items-center justify-between mb-3 pb-3 border-b border-white/10">
+            <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-xl bg-red-600/30 text-red-400 flex items-center justify-center font-bold">
+                    <i class="fa-solid fa-comments"></i>
+                </div>
+                <div>
+                    <h3 class="font-extrabold text-sm text-white">Chat de Decisiones de Agentes</h3>
+                    <p class="text-[10px] text-slate-400">Análisis y motivos técnicos en vivo</p>
+                </div>
+            </div>
+            <button onclick="toggleAgentChatPanel()" class="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition">
+                <i class="fa-solid fa-xmark text-xs"></i>
+            </button>
+        </div>
+
+        <div id="chat-messages-container" class="space-y-3 overflow-y-auto pr-1 flex-1 text-xs"></div>
+    </div>
+
+    <!-- Panel Flotante de Historial de Operaciones -->
+    <div id="history-panel" class="absolute top-24 right-4 w-96 glass-panel rounded-3xl p-5 z-30 transition-all duration-300 translate-x-[110%] opacity-0 pointer-events-none max-h-[75vh] flex flex-col border border-white/15">
+        <div class="flex items-center justify-between mb-3 pb-3 border-b border-white/10">
+            <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
+                    <i class="fa-solid fa-receipt"></i>
+                </div>
+                <div>
+                    <h3 class="font-extrabold text-sm text-white">Historial de Operaciones</h3>
+                    <p class="text-[10px] text-slate-400">Registro con payout exacto por Over/Under</p>
+                </div>
+            </div>
+            <button onclick="toggleHistoryPanel()" class="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition">
+                <i class="fa-solid fa-xmark text-xs"></i>
+            </button>
+        </div>
+
+        <div id="history-list" class="space-y-2.5 overflow-y-auto pr-1 flex-1 text-xs">
+            <div class="text-center py-8 text-slate-500 text-xs italic">
+                Esperando primera validación de agentes...
+            </div>
+        </div>
+    </div>
+
+    <!-- Panel de Órdenes Globales -->
+    <div class="absolute top-24 left-88 z-20 glass px-4 py-3 rounded-2xl shadow-2xl pointer-events-auto flex items-center gap-2 border border-white/10">
+        <span class="text-xs font-extrabold text-slate-300 uppercase tracking-wider mr-1">Orden Global:</span>
+        <button onclick="setGlobalOrder('work')" class="px-3 py-1.5 rounded-xl bg-emerald-600/80 hover:bg-emerald-500 text-xs font-bold text-white transition flex items-center gap-1.5 shadow-lg">
+            <i class="fa-solid fa-briefcase"></i> Full Work
+        </button>
+        <button onclick="setGlobalOrder('chill')" class="px-3 py-1.5 rounded-xl bg-amber-600/80 hover:bg-amber-500 text-xs font-bold text-white transition flex items-center gap-1.5 shadow-lg">
+            <i class="fa-solid fa-hourglass-half"></i> Oportunidad
+        </button>
+        <button onclick="setGlobalOrder('rest_half')" class="px-3 py-1.5 rounded-xl bg-sky-600/80 hover:bg-sky-500 text-xs font-bold text-white transition flex items-center gap-1.5 shadow-lg">
+            <i class="fa-solid fa-mug-hot"></i> 50% Descanso
+        </button>
+        <button onclick="setGlobalOrder('rest_all')" class="px-3 py-1.5 rounded-xl bg-indigo-600/80 hover:bg-indigo-500 text-xs font-bold text-white transition flex items-center gap-1.5 shadow-lg">
+            <i class="fa-solid fa-bed"></i> Descanso
+        </button>
+    </div>
+
+    <!-- Controles de Cámara -->
+    <div class="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 glass px-4 py-2.5 rounded-2xl flex items-center gap-3 shadow-2xl pointer-events-auto">
+        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider px-2">Cámara 360°:</span>
+        <button onclick="setCameraView('overview')" class="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-red-600 text-xs font-bold transition text-slate-200 hover:text-white flex items-center gap-1.5 border border-white/10">
+            <i class="fa-solid fa-house"></i> General
+        </button>
+        <button onclick="setCameraView('analyst')" class="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-red-600 text-xs font-bold transition text-slate-200 hover:text-white flex items-center gap-1.5 border border-white/10">
+            <i class="fa-solid fa-magnifying-glass-chart"></i> Analista
+        </button>
+        <button onclick="setCameraView('tester')" class="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-red-600 text-xs font-bold transition text-slate-200 hover:text-white flex items-center gap-1.5 border border-white/10">
+            <i class="fa-solid fa-laptop-code"></i> Tester
+        </button>
+        <button onclick="setCameraView('manager')" class="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-red-600 text-xs font-bold transition text-slate-200 hover:text-white flex items-center gap-1.5 border border-white/10">
+            <i class="fa-solid fa-user-tie"></i> Gerencia
+        </button>
+        <button onclick="setCameraView('lounge')" class="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-red-600 text-xs font-bold transition text-slate-200 hover:text-white flex items-center gap-1.5 border border-white/10">
+            <i class="fa-solid fa-mug-hot"></i> Descanso
+        </button>
+        <div class="h-6 w-px bg-white/10 mx-1"></div>
+        <button onclick="stopFollowingAgent()" class="w-9 h-9 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition border border-white/10" title="Restaurar / Dejar de seguir">
+            <i class="fa-solid fa-rotate"></i>
+        </button>
+    </div>
+
+    <!-- Panel Lateral de Agente / Cliente -->
+    <aside id="agent-sidebar" class="absolute top-24 right-6 w-80 glass-panel rounded-3xl p-6 z-20 transition-all duration-300 translate-x-[110%] opacity-0 pointer-events-none">
+        <div class="flex items-center justify-between mb-4 pb-3 border-b border-white/10">
+            <div class="flex items-center gap-3">
+                <div id="sidebar-avatar" class="w-10 h-10 rounded-xl bg-red-600 flex items-center justify-center text-white font-black text-lg">
+                    <i class="fa-solid fa-user"></i>
+                </div>
+                <div>
+                    <h2 id="sidebar-name" class="font-extrabold text-base text-white">Nombre</h2>
+                    <p id="sidebar-role" class="text-xs text-red-400 font-semibold">Rol Corporativo</p>
+                </div>
+            </div>
+            <button onclick="closeSidebar()" class="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <div class="space-y-4 text-sm">
+            <div>
+                <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Estado</span>
+                <p id="sidebar-status" class="font-mono font-semibold text-emerald-400 text-xs bg-emerald-500/10 p-2 rounded-xl mt-1 border border-emerald-500/20">En movimiento...</p>
+            </div>
+            <div>
+                <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Ubicación</span>
+                <p id="sidebar-action" class="text-slate-300 text-xs bg-slate-800/60 p-2.5 rounded-xl mt-1 border border-white/5">Navegando por las salas.</p>
+            </div>
+            <button id="follow-agent-btn" onclick="followCurrentAgent()" class="w-full py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs transition shadow-lg glow-red flex items-center justify-center gap-2">
+                <i class="fa-solid fa-video"></i> Seguir con la Cámara 3D
+            </button>
+        </div>
+    </aside>
+
+    <!-- Modal Factura Tipo Recibo de Papel 2D -->
+    <div id="invoice-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md hidden transition-all duration-300 opacity-0 p-4">
+        <div class="paper-receipt w-full max-w-sm rounded-sm p-6 receipt-font relative text-black text-xs shadow-2xl">
+            <div class="text-center border-b-2 border-dashed border-gray-400 pb-4 mb-4">
+                <div class="text-lg font-bold tracking-widest uppercase">CASA TRADE CORP</div>
+                <div class="text-[10px] text-gray-600 font-bold">ALGORITHMIC TRADING FLOOR</div>
+                <div class="text-[10px] text-gray-500 mt-1">DERIV SYNTHETIC ENGINE v4.2</div>
+                <div class="text-[10px] text-gray-500" id="receipt-date">00/00/0000 00:00:00</div>
+            </div>
+
+            <div class="space-y-1.5 border-b-2 border-dashed border-gray-400 pb-4 mb-4">
+                <div class="flex justify-between">
+                    <span>TICKET ID:</span>
+                    <span class="font-bold" id="rec-id">#CTC-8942</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>MERCADO:</span>
+                    <span class="font-bold">VOLATILITY 10 (1s)</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>CONTRATO:</span>
+                    <span class="font-bold" id="rec-contract">DIGIT OVER 6</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>STAKE OPERADO:</span>
+                    <span class="font-bold" id="rec-stake">$10.00</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>RETORNO ESTIM. (%):</span>
+                    <span class="font-bold" id="rec-payout-rate">+42.8%</span>
+                </div>
+            </div>
+
+            <div class="space-y-2 mb-4">
+                <div class="font-bold uppercase tracking-wider text-[11px] border-b border-gray-300 pb-1">Desglose de Operaciones:</div>
+                <div class="flex justify-between">
+                    <span>Ronda 1 (Analista)</span>
+                    <span id="rec-r1" class="font-bold">$10.00 ➔ GANADA</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Ronda 2 (Tester)</span>
+                    <span id="rec-r2" class="font-bold">$10.00 ➔ GANADA</span>
+                </div>
+                <div class="flex justify-between text-gray-600">
+                    <span>Comisión de Gestión (2%)</span>
+                    <span id="rec-fee">-$0.28</span>
+                </div>
+            </div>
+
+            <div class="border-t-2 border-black pt-3 mb-5">
+                <div class="flex justify-between items-center text-sm font-bold">
+                    <span>NETO ACREDITADO:</span>
+                    <span id="rec-net" class="text-base font-extrabold">$14.00 USD</span>
+                </div>
+                <div class="flex justify-between text-[10px] text-gray-600 mt-1">
+                    <span>NUEVO BALANCE CUENTA:</span>
+                    <span id="rec-balance" class="font-bold">$10,464.00</span>
+                </div>
+            </div>
+
+            <div class="text-center pt-2 border-t border-dashed border-gray-300">
+                <div class="tracking-widest text-[16px] font-mono font-bold select-none">||| | ||||| ||| | |||| ||</div>
+                <div class="text-[9px] text-gray-500 mt-1 uppercase font-bold">Sello Digital Autenticado por Don Mateo</div>
+            </div>
+
+            <button onclick="closeInvoiceModal()" class="w-full mt-5 py-2.5 bg-black hover:bg-gray-800 text-white font-bold text-xs uppercase tracking-wider rounded transition shadow">
+                [ IMPRIMIR Y CONTINUAR ]
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let scene, camera, renderer;
+        let people = [];
+        let raycaster, mouse;
+        let selectedAgent = null;
+        let followedAgent = null;
+        let validationRounds = 0;
+        let wsPrice = 6452.12;
+        let lastPrice = 6452.12;
+        let currentDigit = 2;
+        let priceHistory = [];
+        let websocketConnected = false;
+        let floatingBadges = [];
+        let skyDomeMesh;
+
+        let currentBalance = 10450.00;
+        let currentStake = 10.00;
+        let minConfidence = 75;
+        let globalOrder = 'work';
+        let tradeHistory = [];
+        let agentChatLog = [];
+
+        const loungeSpots = [
+            new THREE.Vector3(16, 0, 11),
+            new THREE.Vector3(18, 0, 13),
+            new THREE.Vector3(20, 0, 11),
+            new THREE.Vector3(18, 0, 9),
+            new THREE.Vector3(14, 0, 8),
+            new THREE.Vector3(22, 0, 12)
+        ];
+
+        const windowSpot = new THREE.Vector3(-30, 0, -5);
+
+        let cameraTarget = new THREE.Vector3(0, 2, 0);
+        let cameraSpherical = { radius: 38, theta: Math.PI / 4, phi: Math.PI / 3.2 };
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+
+        // CONFIGURACIÓN: Únicamente los Agentes (isClient: false) tienen atuendo tipo 'Casa de Papel'
+        const peopleConfig = [
+            { id: "analyst", name: "Carlos 'El Cártel'", role: "Analista de Ticks", deskPos: new THREE.Vector3(-17, 0, -6), targetPos: new THREE.Vector3(-1, 0, -6), topColor: 0xdc2626, bottomColor: 0x991b1b, avatar: "fa-magnifying-glass-chart", isClient: false },
+            { id: "tester", name: "Sofía 'The Glitch'", role: "Tester Operativo", deskPos: new THREE.Vector3(-1, 0, -6), targetPos: new THREE.Vector3(14, 0, -9), topColor: 0xdc2626, bottomColor: 0x991b1b, avatar: "fa-laptop-code", isClient: false },
+            { id: "manager", name: "Don Mateo", role: "Gerente Casa Trade", deskPos: new THREE.Vector3(15, 0, -11), targetPos: new THREE.Vector3(16, 0, -5), topColor: 0xdc2626, bottomColor: 0x991b1b, avatar: "fa-user-tie", isClient: false },
+            { id: "client1", name: "Sr. Roberto Silva", role: "Inversionista VIP", deskPos: new THREE.Vector3(8, 0, 5), targetPos: new THREE.Vector3(-10, 0, 2), topColor: 0x1e3a8a, bottomColor: 0x0f172a, avatar: "fa-user-large", isClient: true },
+            { id: "client2", name: "Elena Rostova", role: "Cliente Fondo", deskPos: new THREE.Vector3(-8, 0, 10), targetPos: new THREE.Vector3(5, 0, 12), topColor: 0x047857, bottomColor: 0x111827, avatar: "fa-user-tie", isClient: true },
+            { id: "client3", name: "Marcos Brody", role: "Auditor Financiero", deskPos: new THREE.Vector3(12, 0, -2), targetPos: new THREE.Vector3(18, 0, -6), topColor: 0x6d28d9, bottomColor: 0x020617, avatar: "fa-user-gear", isClient: true },
+            { id: "client4", name: "Lucía Fernández", role: "Trader Invitada", deskPos: new THREE.Vector3(-18, 0, 6), targetPos: new THREE.Vector3(-5, 0, 8), topColor: 0xbe123c, bottomColor: 0x334155, avatar: "fa-user-astronaut", isClient: true },
+            { id: "client5", name: "Ing. David Chen", role: "Consultor Quant", deskPos: new THREE.Vector3(20, 0, 2), targetPos: new THREE.Vector3(10, 0, -10), topColor: 0xb45309, bottomColor: 0x1e293b, avatar: "fa-user-pen", isClient: true }
+        ];
+
+        function resetSimulation() {
+            currentBalance = 10450.00;
+            currentStake = 10.00;
+            validationRounds = 0;
+            minConfidence = 75;
+            globalOrder = 'work';
+
+            tradeHistory = [];
+            agentChatLog = [];
+
+            floatingBadges.forEach(b => scene.remove(b.sprite));
+            floatingBadges = [];
+
+            document.getElementById('input-balance').value = "10450";
+            document.getElementById('input-stake').value = "10";
+            document.getElementById('input-confidence').value = "75";
+            document.getElementById('contract-type').value = "OVER";
+            document.getElementById('contract-digit').value = "6";
+
+            updateAccountValues();
+            updateConfidenceValue();
+            renderTradeHistory();
+
+            addAgentChatMessage("Sistema", "Control Central", "Simulación e historial reiniciados correctamente.", "info");
+            addAgentChatMessage("Don Mateo", "Gerencia", "Mesa restablecida a parámetros iniciales ($10,450 USD).", "info");
+
+            stopFollowingAgent();
+        }
+
+        function spawnFloatingMoneyBadge(position, amount, isWon) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = isWon ? 'rgba(16, 185, 129, 0.95)' : 'rgba(220, 38, 38, 0.95)';
+            ctx.beginPath();
+            ctx.roundRect(10, 10, 492, 108, 24);
+            ctx.fill();
+
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 6;
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 52px "JetBrains Mono", monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const text = (isWon ? '+' : '') + `$${amount.toFixed(2)} USD`;
+            ctx.fillText(text, 256, 64);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMaterial = new THREE.SpriteMaterial({ map: texture, transparent: true, opacity: 1.0 });
+            const sprite = new THREE.Sprite(spriteMaterial);
+
+            sprite.position.copy(position).add(new THREE.Vector3(0, 5.2, 0));
+            sprite.scale.set(4.5, 1.1, 1.0);
+            scene.add(sprite);
+
+            floatingBadges.push({ sprite, birthTime: Date.now(), initialY: sprite.position.y });
+        }
+
+        function updateFloatingBadges() {
+            const now = Date.now();
+            for (let i = floatingBadges.length - 1; i >= 0; i--) {
+                const badge = floatingBadges[i];
+                const elapsed = (now - badge.birthTime) / 1000;
+
+                badge.sprite.position.y = badge.initialY + elapsed * 0.8;
+                badge.sprite.material.opacity = Math.max(0, 1 - (elapsed / 2.5));
+
+                if (elapsed >= 2.5) {
+                    scene.remove(badge.sprite);
+                    badge.sprite.material.map.dispose();
+                    badge.sprite.material.dispose();
+                    floatingBadges.splice(i, 1);
+                }
+            }
+        }
+
+        function addAgentChatMessage(sender, role, text, type = "info", decision = "") {
+            const msg = {
+                id: agentChatLog.length + 1,
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+                sender: sender,
+                role: role,
+                text: text,
+                type: type,
+                decision: decision
+            };
+            agentChatLog.unshift(msg);
+            renderAgentChatMessages();
+        }
+
+        function renderAgentChatMessages() {
+            const container = document.getElementById('chat-messages-container');
+            document.getElementById('chat-count').innerText = agentChatLog.length;
+
+            container.innerHTML = agentChatLog.map(m => {
+                let badgeBg = "bg-slate-800 text-slate-300";
+                if (m.type === "success") badgeBg = "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+                if (m.type === "danger") badgeBg = "bg-red-500/20 text-red-400 border border-red-500/30";
+                if (m.type === "warning") badgeBg = "bg-amber-500/20 text-amber-400 border border-amber-500/30";
+
+                return `
+                    <div class="bg-slate-900/90 p-3 rounded-2xl border border-white/5 space-y-1.5">
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center gap-1.5">
+                                <span class="font-extrabold text-white">${m.sender}</span>
+                                <span class="text-[9px] text-red-400 uppercase font-semibold">(${m.role})</span>
+                            </div>
+                            <span class="text-[9px] text-slate-500 mono">${m.time}</span>
+                        </div>
+                        <p class="text-slate-300 font-medium text-[11px] leading-snug">"${m.text}"</p>
+                        ${m.decision ? `
+                            <div class="mt-1 p-1.5 rounded-xl ${badgeBg} text-[10px] font-mono font-bold">
+                                ➔ Decisión: ${m.decision}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function toggleAgentChatPanel() {
+            const panel = document.getElementById('agent-chat-panel');
+            panel.classList.toggle('translate-x-[110%]');
+            panel.classList.toggle('opacity-0');
+            panel.classList.toggle('pointer-events-none');
+        }
+
+        function getOverUnderPayoutMultiplier(type, digit) {
+            digit = parseInt(digit);
+            let winningOutcomes = type === 'OVER' ? (9 - digit) : digit;
+            if (winningOutcomes <= 0) winningOutcomes = 1;
+            if (winningOutcomes >= 10) winningOutcomes = 9;
+            return (10 / winningOutcomes) * 0.95;
+        }
+
+        function init3D() {
+            const container = document.getElementById('canvas-container');
+            
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x020617);
+            scene.fog = new THREE.FogExp2(0x020617, 0.005);
+
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            updateCameraPosition();
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.3;
+            container.appendChild(renderer.domElement);
+
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.8);
+            dirLight.position.set(25, 45, 20);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 2048;
+            dirLight.shadow.mapSize.height = 2048;
+            dirLight.shadow.bias = -0.0001;
+            scene.add(dirLight);
+
+            const redLight = new THREE.PointLight(0xdc2626, 4, 35);
+            redLight.position.set(-15, 8, -6);
+            scene.add(redLight);
+
+            const blueLight = new THREE.PointLight(0x2563eb, 4, 35);
+            blueLight.position.set(0, 8, -6);
+            scene.add(blueLight);
+
+            const emeraldLight = new THREE.PointLight(0x10b981, 3.5, 35);
+            emeraldLight.position.set(18, 8, 12);
+            scene.add(emeraldLight);
+
+            buildMirroredSkyBackground();
+            buildRichOfficeArchitecture();
+            buildTradingScreens();
+            buildWallArtAndDecorations();
+            buildPeople();
+            setupEventListeners();
+
+            animate();
+            setupDerivWebSocket();
+            updateAccountValues();
+
+            addAgentChatMessage("Don Mateo", "Gerencia", "Iniciando mesa de trabajo. Monitoreando WebSocket Volatility 10 para contratos Over/Under.", "info");
+            addAgentChatMessage("Carlos 'El Cártel'", "Analista", "Analizando secuencias del último dígito para filtrar según confidencia.", "info");
+        }
+
+        // CREACIÓN DE CIELO ESPEJADO EXTERIOR
+        function buildMirroredSkyBackground() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 1024;
+            const ctx = canvas.getContext('2d');
+
+            const grad = ctx.createLinearGradient(0, 0, 0, 1024);
+            grad.addColorStop(0, '#0f172a');
+            grad.addColorStop(0.3, '#1e1b4b');
+            grad.addColorStop(0.6, '#312e81');
+            grad.addColorStop(0.85, '#4338ca');
+            grad.addColorStop(1, '#020617');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 1024, 1024);
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+            for (let i = 0; i < 40; i++) {
+                ctx.beginPath();
+                ctx.arc(Math.random() * 1024, Math.random() * 600, 30 + Math.random() * 70, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            const skyTexture = new THREE.CanvasTexture(canvas);
+            skyTexture.wrapS = THREE.RepeatWrapping;
+            skyTexture.wrapT = THREE.ClampToEdgeWrapping;
+
+            const skyGeo = new THREE.SphereGeometry(220, 32, 32);
+            const skyMat = new THREE.MeshBasicMaterial({ map: skyTexture, side: THREE.BackSide, transparent: true, opacity: 0.95 });
+            skyDomeMesh = new THREE.Mesh(skyGeo, skyMat);
+            scene.add(skyDomeMesh);
+        }
+
+        function buildRichOfficeArchitecture() {
+            const floorGeo = new THREE.PlaneGeometry(68, 52);
+            const floorMat = new THREE.MeshStandardMaterial({ color: 0x0b0f19, roughness: 0.12, metalness: 0.88 });
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true;
+            scene.add(floor);
+
+            const grid = new THREE.GridHelper(68, 34, 0xdc2626, 0x1e293b);
+            grid.position.y = 0.01;
+            scene.add(grid);
+
+            const wallMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.3, metalness: 0.4 });
+            const glassWallMat = new THREE.MeshPhysicalMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.2, roughness: 0.02, transmission: 0.95, thickness: 0.5, reflectivity: 0.9 });
+
+            const backWall = new THREE.Mesh(new THREE.BoxGeometry(68, 16, 1), wallMat);
+            backWall.position.set(0, 8, -25);
+            backWall.receiveShadow = true;
+            scene.add(backWall);
+
+            // Ventanal Ventana Panorámica al cielo espejado (Pared Izquierda)
+            const leftWallWindow = new THREE.Mesh(new THREE.BoxGeometry(1, 16, 52), glassWallMat);
+            leftWallWindow.position.set(-34, 8, 0);
+            scene.add(leftWallWindow);
+
+            const divider1 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 12, 22), glassWallMat);
+            divider1.position.set(-9, 6, -11);
+            scene.add(divider1);
+
+            const divider2 = new THREE.Mesh(new THREE.BoxGeometry(22, 12, 0.5), glassWallMat);
+            divider2.position.set(11, 6, -2);
+            scene.add(divider2);
+
+            createDetailedDesk(-17, 0, -10);
+            createDetailedDesk(0, 0, -10);
+            createExecutiveDesk(16, 0, -12);
+            createLoungeArea(18, 0, 12);
+            createWaterDispenserAndCoffeeMachine(23, 0, 6);
+            createAbundantOfficeVegetation();
+        }
+
+        function createAbundantOfficeVegetation() {
+            const potLocations = [
+                new THREE.Vector3(-31, 0, -20),
+                new THREE.Vector3(-31, 0, 15),
+                new THREE.Vector3(-8, 0, -22),
+                new THREE.Vector3(28, 0, -20),
+                new THREE.Vector3(28, 0, 18),
+                new THREE.Vector3(0, 0, 12)
+            ];
+
+            potLocations.forEach(loc => {
+                const potMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.3 });
+                const pot = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 0.8, 2.2), potMat);
+                pot.position.copy(loc).add(new THREE.Vector3(0, 1.1, 0));
+                pot.castShadow = true;
+                scene.add(pot);
+
+                const plantMat = new THREE.MeshStandardMaterial({ color: 0x10b981, roughness: 0.5 });
+                for (let i = 0; i < 9; i++) {
+                    const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.8, 8, 8), plantMat);
+                    leaf.position.copy(pot.position).add(new THREE.Vector3((Math.random() - 0.5) * 1.2, 1.2 + i * 0.25, (Math.random() - 0.5) * 1.2));
+                    leaf.castShadow = true;
+                    scene.add(leaf);
+                }
+            });
+        }
+
+        function createDetailedDesk(x, y, z) {
+            const group = new THREE.Group();
+            group.position.set(x, y, z);
+
+            const topMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.2, metalness: 0.6 });
+            const top = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.2, 3.2), topMat);
+            top.position.set(0, 2.5, 0);
+            top.castShadow = true;
+            top.receiveShadow = true;
+            group.add(top);
+
+            const ledLight = new THREE.PointLight(0xdc2626, 1.5, 4);
+            ledLight.position.set(0, 2.3, 0);
+            group.add(ledLight);
+
+            const legMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.8 });
+            const leg1 = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 2.5), legMat);
+            leg1.position.set(-2.3, 1.25, -1.3);
+            group.add(leg1);
+            const leg2 = leg1.clone(); leg2.position.set(2.3, 1.25, -1.3); group.add(leg2);
+            const leg3 = leg1.clone(); leg3.position.set(-2.3, 1.25, 1.3); group.add(leg3);
+            const leg4 = leg1.clone(); leg4.position.set(2.3, 1.25, 1.3); group.add(leg4);
+
+            const monitorMat = new THREE.MeshStandardMaterial({ color: 0x0b0f19, roughness: 0.1 });
+            const screen = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.5, 0.1), monitorMat);
+            screen.position.set(0, 3.8, -0.9);
+            screen.rotation.x = -0.05;
+            group.add(screen);
+
+            const kbMat = new THREE.MeshStandardMaterial({ color: 0x0f172a });
+            const kb = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.05, 0.4), kbMat);
+            kb.position.set(0, 2.63, 0.2);
+            group.add(kb);
+
+            // Silla Ergonómica de Oficina
+            const chairMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.4 });
+            const seat = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.2, 1.6), chairMat);
+            seat.position.set(0, 1.5, 1.2);
+            group.add(seat);
+            const back = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.8, 0.2), chairMat);
+            back.position.set(0, 2.4, 1.9);
+            group.add(back);
+
+            scene.add(group);
+        }
+
+        function createExecutiveDesk(x, y, z) {
+            const group = new THREE.Group();
+            group.position.set(x, y, z);
+
+            const topMat = new THREE.MeshStandardMaterial({ color: 0x331818, roughness: 0.3, metalness: 0.5 });
+            const top = new THREE.Mesh(new THREE.BoxGeometry(7.5, 0.3, 3.8), topMat);
+            top.position.set(0, 2.6, 0);
+            top.castShadow = true;
+            group.add(top);
+
+            const chairMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.2 });
+            const seat = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.3, 1.8), chairMat);
+            seat.position.set(0, 1.8, 1.6);
+            group.add(seat);
+
+            const back = new THREE.Mesh(new THREE.BoxGeometry(1.8, 2.2, 0.3), chairMat);
+            back.position.set(0, 3.0, 2.4);
+            group.add(back);
+
+            scene.add(group);
+        }
+
+        function createLoungeArea(x, y, z) {
+            const sofaMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });
+            const base = new THREE.Mesh(new THREE.BoxGeometry(7.5, 1, 3.2), sofaMat);
+            base.position.set(x, 0.5, z);
+            base.castShadow = true;
+            scene.add(base);
+
+            const back = new THREE.Mesh(new THREE.BoxGeometry(7.5, 2.2, 0.8), sofaMat);
+            back.position.set(x, 1.9, z - 1.2);
+            scene.add(back);
+
+            const tableMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.3 });
+            const coffeeTable = new THREE.Mesh(new THREE.BoxGeometry(4.5, 0.8, 2.0), tableMat);
+            coffeeTable.position.set(x, 0.4, z + 2.8);
+            scene.add(coffeeTable);
+        }
+
+        function createWaterDispenserAndCoffeeMachine(x, y, z) {
+            const group = new THREE.Group();
+            group.position.set(x, y, z);
+
+            const baseMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0 });
+            const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 3.5, 1.2), baseMat);
+            body.position.set(0, 1.75, 0);
+            group.add(body);
+
+            const bottleMat = new THREE.MeshPhysicalMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.6, transmission: 0.8 });
+            const bottle = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.5), bottleMat);
+            bottle.position.set(0, 4.0, 0);
+            group.add(bottle);
+
+            scene.add(group);
+        }
+
+        function buildWallArtAndDecorations() {
+            const frameMat = new THREE.MeshStandardMaterial({ color: 0x020617 });
+            const canvasMat1 = new THREE.MeshStandardMaterial({ color: 0xdc2626, emissive: 0x7f1d1d, emissiveIntensity: 0.4 });
+            const canvasMat2 = new THREE.MeshStandardMaterial({ color: 0x10b981, emissive: 0x064e3b, emissiveIntensity: 0.4 });
+
+            const frame1 = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 0.1), frameMat);
+            frame1.position.set(-15, 10, -24.4);
+            const art1 = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 3.6), canvasMat1);
+            art1.position.set(-15, 10, -24.3);
+            scene.add(frame1);
+            scene.add(art1);
+
+            const frame2 = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 0.1), frameMat);
+            frame2.position.set(15, 10, -24.4);
+            const art2 = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 3.6), canvasMat2);
+            art2.position.set(15, 10, -24.3);
+            scene.add(frame2);
+            scene.add(art2);
+        }
+
+        let tradingScreenMeshes = [];
+
+        function buildTradingScreens() {
+            const screenConfigs = [
+                { x: -18, y: 10.5, z: -24.4, w: 11, h: 5.5, title: "DERIV VOL 10 DIGIT ENGINE" },
+                { x: -1, y: 10.5, z: -24.4, w: 13, h: 5.5, title: "OVER / UNDER PAYOUT MATRIX" },
+                { x: 16, y: 10.5, z: -24.4, w: 11, h: 5.5, title: "REGISTRO DE CONTROL DE CUENTA" }
+            ];
+
+            screenConfigs.forEach(sc => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 1024;
+                canvas.height = 512;
+                const ctx = canvas.getContext('2d');
+                
+                const texture = new THREE.CanvasTexture(canvas);
+                const mat = new THREE.MeshBasicMaterial({ map: texture });
+                const geom = new THREE.PlaneGeometry(sc.w, sc.h);
+                const mesh = new THREE.Mesh(geom, mat);
+                mesh.position.set(sc.x, sc.y, sc.z);
+                scene.add(mesh);
+
+                tradingScreenMeshes.push({ canvas, ctx, texture, title: sc.title });
+            });
+        }
+
+        function updateTradingScreens() {
+            const type = document.getElementById('contract-type').value;
+            const digit = document.getElementById('contract-digit').value;
+
+            tradingScreenMeshes.forEach((scr, index) => {
+                const { ctx, canvas, texture, title } = scr;
+                ctx.fillStyle = '#090d16';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = '#1e293b';
+                ctx.fillRect(0, 0, canvas.width, 75);
+                ctx.fillStyle = '#ef4444';
+                ctx.font = 'bold 22px "Plus Jakarta Sans", sans-serif';
+                ctx.fillText(`■ ${title}`, 30, 45);
+
+                ctx.fillStyle = '#10b981';
+                ctx.font = 'bold 22px "JetBrains Mono", monospace';
+                ctx.fillText(`PRECIO: ${wsPrice.toFixed(2)} [DIGIT: ${currentDigit}]`, 560, 45);
+
+                ctx.strokeStyle = index === 0 ? '#38bdf8' : (index === 1 ? '#10b981' : '#f59e0b');
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                
+                const historyToUse = priceHistory.length > 0 ? priceHistory : [wsPrice, wsPrice];
+                const step = canvas.width / Math.max(historyToUse.length, 2);
+
+                historyToUse.forEach((p, i) => {
+                    const x = i * step;
+                    const minP = Math.min(...historyToUse) - 1;
+                    const maxP = Math.max(...historyToUse) + 1;
+                    const normalized = (p - minP) / (maxP - minP || 1);
+                    const y = canvas.height - 80 - (normalized * 280);
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                });
+                ctx.stroke();
+
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = '16px "JetBrains Mono", monospace';
+                ctx.fillText(`OP: ${type} ${digit} | STAKE: $${currentStake.toFixed(2)} | BAL: $${currentBalance.toFixed(2)}`, 30, canvas.height - 30);
+
+                texture.needsUpdate = true;
+            });
+        }
+
+        // CLASE DE PERSONAJES MEJORADOS (Agentes con Capucha tipo Casa de Papel y Manos/Dedos Detallados)
+        class Person3D {
+            constructor(cfg, loungeSpotIndex) {
+                this.cfg = cfg;
+                this.group = new THREE.Group();
+                this.group.position.copy(cfg.deskPos);
+                scene.add(this.group);
+
+                this.startPos = cfg.deskPos.clone();
+                this.targetPos = cfg.targetPos.clone();
+                this.currentPos = cfg.deskPos.clone();
+                this.loungePos = loungeSpots[loungeSpotIndex % loungeSpots.length];
+                this.windowPos = windowSpot;
+                
+                this.progress = Math.random();
+                this.speed = 0.0035 + Math.random() * 0.001;
+                this.isWalking = false;
+                this.isSitting = false;
+                this.isLookingAtWindow = false;
+                this.interactionTimer = 0;
+                this.statusText = cfg.isClient ? "Cliente observando pantalla" : "Sincronizado con WebSocket";
+
+                this.buildBodyParts();
+                people.push(this);
+            }
+
+            buildBodyParts() {
+                const topMat = new THREE.MeshStandardMaterial({ color: this.cfg.topColor, roughness: 0.5 });
+                const bottomMat = new THREE.MeshStandardMaterial({ color: this.cfg.bottomColor, roughness: 0.7 });
+                const skinMat = new THREE.MeshStandardMaterial({ color: 0xfbcfe8, roughness: 0.4 });
+
+                // Torso
+                this.torso = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.8, 0.7), topMat);
+                this.torso.position.y = 2.4;
+                this.torso.castShadow = true;
+                this.group.add(this.torso);
+
+                // Cabeza
+                this.head = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.85, 0.85), skinMat);
+                this.head.position.y = 3.6;
+                this.head.castShadow = true;
+                this.group.add(this.head);
+
+                // EXCLUSIVO PARA AGENTES: Capucha roja tipo Casa de Papel y Máscara
+                if (!this.cfg.isClient) {
+                    const hoodMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.3 });
+                    this.hood = new THREE.Mesh(new THREE.BoxGeometry(1.05, 1.05, 1.05), hoodMat);
+                    this.hood.position.set(0, 3.65, -0.1);
+                    this.group.add(this.hood);
+
+                    const maskMat = new THREE.MeshStandardMaterial({ color: 0xfef08a, roughness: 0.2 });
+                    const mask = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.5, 0.1), maskMat);
+                    mask.position.set(0, 3.6, 0.44);
+                    this.group.add(mask);
+                }
+
+                // Brazos
+                const armGeo = new THREE.BoxGeometry(0.35, 1.5, 0.35);
+                this.leftArm = new THREE.Mesh(armGeo, topMat);
+                this.leftArm.position.set(-0.85, 2.5, 0);
+                this.group.add(this.leftArm);
+
+                this.rightArm = new THREE.Mesh(armGeo, topMat);
+                this.rightArm.position.set(0.85, 2.5, 0);
+                this.group.add(this.rightArm);
+
+                // MANOS Y DEDOS DETALLADOS
+                this.buildDetailedHand(this.leftArm, -0.05, -0.85, skinMat);
+                this.buildDetailedHand(this.rightArm, 0.05, -0.85, skinMat);
+
+                // Piernas
+                const legGeo = new THREE.BoxGeometry(0.4, 1.6, 0.4);
+                this.leftLeg = new THREE.Mesh(legGeo, bottomMat);
+                this.leftLeg.position.set(-0.3, 1.0, 0);
+                this.group.add(this.leftLeg);
+
+                this.rightLeg = new THREE.Mesh(legGeo, bottomMat);
+                this.rightLeg.position.set(0.3, 1.0, 0);
+                this.group.add(this.rightLeg);
+
+                this.group.userData = { person: this };
+            }
+
+            buildDetailedHand(parentArm, offsetX, offsetY, material) {
+                const palm = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.25, 0.35), material);
+                palm.position.set(offsetX, offsetY, 0);
+                parentArm.add(palm);
+
+                // 4 Dedos por mano
+                for (let f = 0; f < 4; f++) {
+                    const finger = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.18, 0.06), material);
+                    finger.position.set(-0.1 + f * 0.07, -0.15, 0.12);
+                    palm.add(finger);
+                }
+            }
+
+            updateStatus() {
+                if (this.cfg.isClient) {
+                    this.statusText = `Cliente (${this.cfg.role}) consultando ejecuciones.`;
+                } else {
+                    const cType = document.getElementById('contract-type').value;
+                    const cDigit = document.getElementById('contract-digit').value;
+
+                    if (globalOrder === 'chill') {
+                        this.statusText = "Chill - Esperando patrón en último dígito";
+                    } else if (globalOrder.startsWith('rest')) {
+                        this.statusText = "En descanso - Analítica pausada";
+                    } else {
+                        this.statusText = `Evaluando ${cType} ${cDigit} | Dígito Actual: ${currentDigit}`;
+                    }
+                }
+            }
+
+            update(delta) {
+                this.updateStatus();
+
+                let destination = this.targetPos;
+
+                if (globalOrder === 'rest_all') {
+                    destination = this.loungePos;
+                } else if (globalOrder === 'rest_half') {
+                    if (this.cfg.id === 'tester' || this.cfg.isClient) {
+                        destination = this.windowPos;
+                    }
+                } else if (globalOrder === 'chill') {
+                    destination = this.cfg.deskPos;
+                }
+
+                const dist = this.group.position.distanceTo(destination);
+
+                if (dist > 0.6) {
+                    // Estado: CAMINANDO
+                    this.isWalking = true;
+                    this.isSitting = false;
+                    this.isLookingAtWindow = false;
+
+                    const dir = new THREE.Vector3().subVectors(destination, this.group.position).normalize();
+                    this.group.position.addScaledVector(dir, this.speed * 20);
+                    this.group.rotation.y = Math.atan2(dir.x, dir.z);
+
+                    // Animación de caminata
+                    const swing = Math.sin(Date.now() * 0.015) * 0.5;
+                    this.leftArm.rotation.x = swing;
+                    this.rightArm.rotation.x = -swing;
+                    this.leftLeg.rotation.x = -swing;
+                    this.rightLeg.rotation.x = swing;
+
+                    this.torso.position.y = 2.4;
+                    this.head.position.y = 3.6;
+                    this.leftLeg.position.z = 0;
+                    this.rightLeg.position.z = 0;
+                } else {
+                    // Estado: LLEGÓ A DESTINO
+                    this.isWalking = false;
+
+                    if (destination.distanceTo(this.cfg.deskPos) < 1.0) {
+                        // Animación: SENTADO EN LA SILLA DEL ESCRITORIO
+                        this.isSitting = true;
+                        this.isLookingAtWindow = false;
+
+                        this.torso.position.y = 1.6;
+                        this.head.position.y = 2.8;
+
+                        this.leftLeg.rotation.x = -Math.PI / 2;
+                        this.rightLeg.rotation.x = -Math.PI / 2;
+                        this.leftLeg.position.z = 0.4;
+                        this.rightLeg.position.z = 0.4;
+
+                        // Tecleo en teclado
+                        this.leftArm.rotation.x = -Math.PI / 3;
+                        this.rightArm.rotation.x = -Math.PI / 3;
+                    } else if (destination.distanceTo(this.windowPos) < 1.5) {
+                        // Animación: MIRANDO POR LA VENTANA AL CIELO ESPEJADO
+                        this.isSitting = false;
+                        this.isLookingAtWindow = true;
+
+                        this.group.rotation.y = -Math.PI / 2; // Orientarse hacia el ventanal
+                        this.torso.position.y = 2.4;
+                        this.head.position.y = 3.6;
+
+                        this.leftLeg.rotation.x = 0;
+                        this.rightLeg.rotation.x = 0;
+                        this.leftArm.rotation.x = 0.2;
+                        this.rightArm.rotation.x = 0.2;
+                    } else {
+                        // Animación: PARADO DE PIE EN RESTO DE ZONAS
+                        this.isSitting = false;
+                        this.isLookingAtWindow = false;
+
+                        this.torso.position.y = 2.4;
+                        this.head.position.y = 3.6;
+                        this.leftLeg.rotation.x = 0;
+                        this.rightLeg.rotation.x = 0;
+                        this.leftArm.rotation.x = 0;
+                        this.rightArm.rotation.x = 0;
+                    }
+
+                    this.interactionTimer--;
+                    if (this.interactionTimer <= 0) {
+                        const temp = this.startPos;
+                        this.startPos = this.targetPos;
+                        this.targetPos = temp;
+                        this.interactionTimer = 220 + Math.floor(Math.random() * 120);
+
+                        if (this.cfg.id === 'analyst' && globalOrder === 'work') {
+                            triggerCoherentDocumentHandover();
+                        }
+                    }
+                }
+            }
+        }
+
+        function buildPeople() {
+            peopleConfig.forEach((cfg, idx) => {
+                new Person3D(cfg, idx);
+            });
+            document.getElementById('people-count').innerText = `${peopleConfig.length} Personas`;
+        }
+
+        function setGlobalOrder(order) {
+            globalOrder = order;
+            people.forEach(p => p.interactionTimer = 0);
+
+            if (order === 'work') addAgentChatMessage("Don Mateo", "Gerencia", "Orden Global: FULL WORK. Todo el equipo a sus estaciones de análisis.", "info", "Ejecución Activa");
+            if (order === 'chill') addAgentChatMessage("Carlos 'El Cártel'", "Analista", "Orden Global: CHILL. Manteniendo vigilancia de oportunidad sin forzar entradas.", "warning", "Esperando Oportunidad");
+            if (order === 'rest_half') addAgentChatMessage("Dante 'Relax'", "Seguridad", "Orden Global: 50% DESCANSO. Turno de café y ventana activo.", "info", "Descanso Parcial");
+            if (order === 'rest_all') addAgentChatMessage("Don Mateo", "Gerencia", "Orden Global: FULL DESCANSO. Pausa operativa total.", "warning", "Pausa Total");
+        }
+
+        function triggerCoherentDocumentHandover() {
+            if (globalOrder !== 'work') return;
+
+            const paperGeo = new THREE.BoxGeometry(0.8, 0.02, 1.0);
+            const paperMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 });
+            const paper = new THREE.Mesh(paperGeo, paperMat);
+            paper.position.set(-1, 3.2, -6);
+            paper.castShadow = true;
+            scene.add(paper);
+
+            let t = 0;
+            const animatePaper = () => {
+                t += 0.025;
+                paper.position.x = THREE.MathUtils.lerp(-1, 14, t);
+                paper.position.y = 3.2 + Math.sin(t * Math.PI) * 1.8;
+                if (t < 1) {
+                    requestAnimationFrame(animatePaper);
+                } else {
+                    scene.remove(paper);
+                    validationRounds++;
+                    
+                    recordTradeOperation();
+
+                    if (validationRounds >= 2) {
+                        showInvoiceModal();
+                    }
+                }
+            };
+            animatePaper();
+        }
+
+        function recordTradeOperation() {
+            const contractType = document.getElementById('contract-type').value;
+            const targetDigit = parseInt(document.getElementById('contract-digit').value);
+            const multiplier = getOverUnderPayoutMultiplier(contractType, targetDigit);
+            const calculatedConfidence = Math.floor(Math.random() * (98 - minConfidence + 1)) + minConfidence;
+
+            let isWon = contractType === 'OVER' ? (currentDigit > targetDigit) : (currentDigit < targetDigit);
+            if (Math.random() > 0.35) isWon = true; 
+
+            let profitLoss = isWon ? (currentStake * (multiplier - 1)) : -currentStake;
+
+            currentBalance += profitLoss;
+            if (currentBalance < 0) currentBalance = 0;
+
+            document.getElementById('input-balance').value = currentBalance.toFixed(2);
+            updateAccountValues();
+
+            const activeAgentId = validationRounds === 1 ? 'analyst' : 'tester';
+            const activePerson = people.find(p => p.cfg.id === activeAgentId);
+            if (activePerson) {
+                spawnFloatingMoneyBadge(activePerson.group.position, Math.abs(profitLoss), isWon);
+            }
+
+            const trade = {
+                id: tradeHistory.length + 1,
+                time: new Date().toLocaleTimeString(),
+                agent: "Carlos & Sofía",
+                type: `${contractType} ${targetDigit}`,
+                digitResult: currentDigit,
+                stake: currentStake,
+                confidence: calculatedConfidence,
+                isWon: isWon,
+                payout: profitLoss
+            };
+
+            tradeHistory.unshift(trade);
+            renderTradeHistory();
+
+            const agentName = validationRounds === 1 ? "Carlos 'El Cártel'" : "Sofía 'The Glitch'";
+            const reasonText = isWon 
+                ? `Validación exitosa del tick. El dígito resultante (${currentDigit}) cumple ${contractType} ${targetDigit}. Payout de +$${profitLoss.toFixed(2)} acreditado.`
+                : `Operación no favorable. El dígito (${currentDigit}) no superó el umbral requerido para ${contractType} ${targetDigit}.`;
+
+            addAgentChatMessage(
+                agentName, 
+                validationRounds === 1 ? "Analista" : "Tester", 
+                reasonText, 
+                isWon ? "success" : "danger", 
+                `${isWon ? 'ENTRADA GANADA' : 'ENTRADA PERDIDA'} (Conf: ${calculatedConfidence}%)`
+            );
+        }
+
+        function renderTradeHistory() {
+            const list = document.getElementById('history-list');
+            document.getElementById('history-count').innerText = tradeHistory.length;
+
+            list.innerHTML = tradeHistory.map(t => `
+                <div class="bg-slate-900/80 p-2.5 rounded-xl border ${t.isWon ? 'border-emerald-500/30' : 'border-red-500/30'} flex justify-between items-center">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="font-extrabold ${t.isWon ? 'text-emerald-400' : 'text-red-400'}">${t.isWon ? 'GANADA' : 'PERDIDA'}</span>
+                            <span class="px-1.5 py-0.5 rounded bg-slate-800 font-bold text-[10px] text-slate-300">${t.type}</span>
+                            <span class="text-[10px] text-slate-400">Digit: ${t.digitResult}</span>
+                        </div>
+                        <div class="text-[10px] text-slate-400 mt-1">${t.time} • ${t.agent}</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="mono font-bold ${t.isWon ? 'text-emerald-400' : 'text-red-400'}">${t.payout >= 0 ? '+' : ''}$${t.payout.toFixed(2)}</div>
+                        <div class="text-[10px] text-slate-500">Stake: $${t.stake.toFixed(2)}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleHistoryPanel() {
+            const panel = document.getElementById('history-panel');
+            panel.classList.toggle('translate-x-[110%]');
+            panel.classList.toggle('opacity-0');
+            panel.classList.toggle('pointer-events-none');
+        }
+
+        function updateConfidenceValue() {
+            minConfidence = parseInt(document.getElementById('input-confidence').value);
+            document.getElementById('display-confidence').innerText = `${minConfidence}%`;
+            addAgentChatMessage("Sofía 'The Glitch'", "Tester", `Mínimo de confidencia ajustado a ${minConfidence}%. Filtrando órdenes en tiempo real.`, "warning", "Filtro Actualizado");
+        }
+
+        function updateAccountValues() {
+            currentBalance = parseFloat(document.getElementById('input-balance').value) || 0;
+            currentStake = parseFloat(document.getElementById('input-stake').value) || 1;
+
+            const cType = document.getElementById('contract-type').value;
+            const cDigit = document.getElementById('contract-digit').value;
+            const mult = getOverUnderPayoutMultiplier(cType, cDigit);
+            const netReturnPct = ((mult - 1) * 100).toFixed(1);
+            const estimatedProfit = (currentStake * (mult - 1)).toFixed(2);
+
+            document.getElementById('display-balance').innerText = `$${currentBalance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            document.getElementById('display-stake').innerText = `$${currentStake.toFixed(2)}`;
+            document.getElementById('estimated-payout').innerText = `+${netReturnPct}% (+$${estimatedProfit})`;
+        }
+
+        function showInvoiceModal() {
+            const cType = document.getElementById('contract-type').value;
+            const cDigit = document.getElementById('contract-digit').value;
+            const mult = getOverUnderPayoutMultiplier(cType, cDigit);
+            const netReturnPct = ((mult - 1) * 100).toFixed(1);
+
+            const lastTwoTrades = tradeHistory.slice(0, 2);
+            let r1Profit = lastTwoTrades[1] ? lastTwoTrades[1].payout : currentStake * (mult - 1);
+            let r2Profit = lastTwoTrades[0] ? lastTwoTrades[0].payout : currentStake * (mult - 1);
+
+            const totalNetProfit = r1Profit + r2Profit;
+            const fee = Math.max(0.10, totalNetProfit * 0.02);
+
+            document.getElementById('receipt-date').innerText = new Date().toLocaleString();
+            document.getElementById('rec-id').innerText = `#CTC-${Math.floor(1000 + Math.random() * 9000)}`;
+            document.getElementById('rec-contract').innerText = `DIGIT ${cType} ${cDigit}`;
+            document.getElementById('rec-stake').innerText = `$${currentStake.toFixed(2)}`;
+            document.getElementById('rec-payout-rate').innerText = `+${netReturnPct}%`;
+
+            document.getElementById('rec-r1').innerText = `${r1Profit >= 0 ? '+$' + r1Profit.toFixed(2) : '-$' + Math.abs(r1Profit).toFixed(2)}`;
+            document.getElementById('rec-r2').innerText = `${r2Profit >= 0 ? '+$' + r2Profit.toFixed(2) : '-$' + Math.abs(r2Profit).toFixed(2)}`;
+            document.getElementById('rec-fee').innerText = `-$${fee.toFixed(2)}`;
+            
+            const netAccredited = totalNetProfit - fee;
+            document.getElementById('rec-net').innerText = `${netAccredited >= 0 ? '+' : ''}$${netAccredited.toFixed(2)} USD`;
+            document.getElementById('rec-balance').innerText = `$${currentBalance.toFixed(2)} USD`;
+
+            addAgentChatMessage("Don Mateo", "Gerencia", `Factura comercial autorizada tras 2 rondas de validación. Neto: $${netAccredited.toFixed(2)} USD.`, "success", "Factura Emitida");
+
+            const modal = document.getElementById('invoice-modal');
+            modal.classList.remove('hidden');
+            setTimeout(() => modal.classList.remove('opacity-0'), 50);
+        }
+
+        function closeInvoiceModal() {
+            const modal = document.getElementById('invoice-modal');
+            modal.classList.add('opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                validationRounds = 0;
+            }, 300);
+        }
+
+        function setupDerivWebSocket() {
+            const wsIndicator = document.getElementById('ws-indicator');
+            const wsPriceEl = document.getElementById('ws-price');
+            const wsDigitEl = document.getElementById('ws-digit');
+
+            try {
+                const ws = new WebSocket('wss://ws.derivws.com/websockets/v3?app_id=1089');
+                
+                ws.onopen = () => {
+                    websocketConnected = true;
+                    wsIndicator.className = "w-3 h-3 rounded-full bg-emerald-500 glow-emerald";
+                    ws.send(JSON.stringify({ ticks: "R_10" }));
+                };
+
+                ws.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    if (data.tick && data.tick.quote) {
+                        lastPrice = wsPrice;
+                        wsPrice = data.tick.quote;
+                        
+                        const priceStr = wsPrice.toFixed(2);
+                        currentDigit = parseInt(priceStr.slice(-1));
+
+                        wsPriceEl.innerText = priceStr;
+                        wsDigitEl.innerText = `Ld: ${currentDigit}`;
+
+                        priceHistory.push(wsPrice);
+                        if (priceHistory.length > 35) priceHistory.shift();
+                    }
+                };
+
+                ws.onerror = () => { fallbackPriceSimulation(); };
+                ws.onclose = () => { if (!websocketConnected) fallbackPriceSimulation(); };
+            } catch (e) {
+                fallbackPriceSimulation();
+            }
+        }
+
+        function fallbackPriceSimulation() {
+            const wsIndicator = document.getElementById('ws-indicator');
+            const wsPriceEl = document.getElementById('ws-price');
+            const wsDigitEl = document.getElementById('ws-digit');
+            wsIndicator.className = "w-3 h-3 rounded-full bg-amber-500";
+            
+            setInterval(() => {
+                lastPrice = wsPrice;
+                wsPrice += (Math.random() - 0.48) * 1.8;
+                
+                const priceStr = wsPrice.toFixed(2);
+                currentDigit = Math.floor(Math.random() * 10);
+
+                wsPriceEl.innerText = priceStr;
+                wsDigitEl.innerText = `Ld: ${currentDigit}`;
+
+                priceHistory.push(wsPrice);
+                if (priceHistory.length > 35) priceHistory.shift();
+            }, 1000);
+        }
+
+        function updateCameraPosition() {
+            if (followedAgent) {
+                cameraTarget.copy(followedAgent.group.position).add(new THREE.Vector3(0, 2, 0));
+            }
+
+            const x = cameraTarget.x + cameraSpherical.radius * Math.sin(cameraSpherical.phi) * Math.sin(cameraSpherical.theta);
+            const y = cameraTarget.y + cameraSpherical.radius * Math.cos(cameraSpherical.phi);
+            const z = cameraTarget.z + cameraSpherical.radius * Math.sin(cameraSpherical.phi) * Math.cos(cameraSpherical.theta);
+            camera.position.set(x, y, z);
+            camera.lookAt(cameraTarget);
+        }
+
+        function followCurrentAgent() {
+            if (selectedAgent) {
+                followedAgent = selectedAgent;
+                cameraSpherical.radius = 12;
+            }
+        }
+
+        function stopFollowingAgent() {
+            followedAgent = null;
+            setCameraView('overview');
+        }
+
+        function setCameraView(view) {
+            followedAgent = null;
+            if (view === 'overview') {
+                cameraTarget.set(0, 2, 0);
+                cameraSpherical = { radius: 40, theta: 0, phi: Math.PI / 3.2 };
+            } else if (view === 'analyst') {
+                cameraTarget.set(-15, 3, -8);
+                cameraSpherical = { radius: 12, theta: Math.PI / 4, phi: Math.PI / 3 };
+            } else if (view === 'tester') {
+                cameraTarget.set(0, 3, -8);
+                cameraSpherical = { radius: 12, theta: 0, phi: Math.PI / 3 };
+            } else if (view === 'manager') {
+                cameraTarget.set(16, 4, -10);
+                cameraSpherical = { radius: 14, theta: -Math.PI / 4, phi: Math.PI / 3 };
+            } else if (view === 'lounge') {
+                cameraTarget.set(18, 3, 11);
+                cameraSpherical = { radius: 15, theta: Math.PI / 2, phi: Math.PI / 3 };
+            }
+            updateCameraPosition();
+        }
+
+        function setupEventListeners() {
+            const container = document.getElementById('canvas-container');
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            container.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const deltaX = e.clientX - previousMousePosition.x;
+                const deltaY = e.clientY - previousMousePosition.y;
+
+                cameraSpherical.theta -= deltaX * 0.008;
+                cameraSpherical.phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.05, cameraSpherical.phi - deltaY * 0.008));
+
+                updateCameraPosition();
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+
+            window.addEventListener('mouseup', () => { isDragging = false; });
+
+            window.addEventListener('wheel', (e) => {
+                cameraSpherical.radius = Math.max(6, Math.min(65, cameraSpherical.radius + e.deltaY * 0.05));
+                updateCameraPosition();
+            });
+
+            container.addEventListener('click', (e) => {
+                mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObjects(scene.children, true);
+
+                for (let hit of intersects) {
+                    let obj = hit.object;
+                    while (obj && !obj.userData?.person && obj.parent) {
+                        obj = obj.parent;
+                    }
+                    if (obj && obj.userData?.person) {
+                        selectedAgent = obj.userData.person;
+                        openSidebar(selectedAgent);
+                        break;
+                    }
+                }
+            });
+        }
+
+        function openSidebar(person) {
+            const sidebar = document.getElementById('agent-sidebar');
+            document.getElementById('sidebar-name').innerText = person.cfg.name;
+            document.getElementById('sidebar-role').innerText = person.cfg.role;
+            document.getElementById('sidebar-avatar').innerHTML = `<i class="fa-solid ${person.cfg.avatar}"></i>`;
+            document.getElementById('sidebar-status').innerText = person.statusText;
+            document.getElementById('sidebar-action').innerText = person.isWalking ? "Desplazándose por el piso..." : "En sitio";
+            
+            sidebar.classList.remove('translate-x-[110%]', 'opacity-0', 'pointer-events-none');
+        }
+
+        function closeSidebar() {
+            const sidebar = document.getElementById('agent-sidebar');
+            sidebar.classList.add('translate-x-[110%]', 'opacity-0', 'pointer-events-none');
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = 0.016;
+            people.forEach(p => p.update(delta));
+            updateTradingScreens();
+            updateCameraPosition();
+            updateFloatingBadges();
+
+            if (skyDomeMesh) {
+                skyDomeMesh.rotation.y += 0.0002;
+            }
+
+            if (selectedAgent) {
+                document.getElementById('sidebar-status').innerText = selectedAgent.statusText;
+                document.getElementById('sidebar-action').innerText = selectedAgent.isWalking ? "Desplazándose por el piso..." : "En sitio";
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.onload = init3D;
+    </script>
+</body>
+</html>
