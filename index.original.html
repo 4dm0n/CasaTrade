@@ -45,7 +45,6 @@
         ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.5); }
         ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 3px; }
     </style>
-    <link rel="stylesheet" href="workspace.css">
 </head>
 <body class="w-screen h-screen relative select-none">
 
@@ -61,7 +60,7 @@
                 <h1 class="font-extrabold text-lg text-white tracking-wide flex items-center gap-2">
                     CASA TRADE <span class="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30">3D DECISION ENGINE</span>
                 </h1>
-                <p class="text-xs text-slate-400 font-medium">Terminal de análisis · Oficina de agentes</p>
+                <p class="text-xs text-slate-400 font-medium">Oficina Corporativa Avanzada & Chat de Agentes</p>
             </div>
         </div>
 
@@ -80,7 +79,7 @@
             <div class="flex items-center gap-3">
                 <div id="ws-indicator" class="w-3 h-3 rounded-full bg-amber-500 animate-ping"></div>
                 <div>
-                    <div class="text-[10px] uppercase font-bold text-slate-400">VOLATILITY 10 · TRADES</div>
+                    <div class="text-[10px] uppercase font-bold text-slate-400">Deriv Vol 10 (Tick Live)</div>
                     <div class="flex items-center gap-2">
                         <span id="ws-price" class="mono font-bold text-emerald-400 text-sm">--.--</span>
                         <span id="ws-digit" class="px-2 py-0.5 rounded bg-red-600/30 text-red-400 mono font-extrabold text-xs border border-red-500/40">Ld: -</span>
@@ -436,7 +435,7 @@
             updateConfidenceValue();
             renderTradeHistory();
 
-            addAgentChatMessage("Sistema", "Control Central", "Trades e historial reiniciados correctamente.", "info");
+            addAgentChatMessage("Sistema", "Control Central", "Simulación e historial reiniciados correctamente.", "info");
             addAgentChatMessage("Don Mateo", "Gerencia", "Mesa restablecida a parámetros iniciales ($10,450 USD).", "info");
 
             stopFollowingAgent();
@@ -563,7 +562,7 @@
             updateCameraPosition();
 
             renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             renderer.shadowMap.enabled = true;
             renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -1170,10 +1169,10 @@
             const contractType = document.getElementById('contract-type').value;
             const targetDigit = parseInt(document.getElementById('contract-digit').value);
             const multiplier = getOverUnderPayoutMultiplier(contractType, targetDigit);
-            const calculatedConfidence = analysisSnapshot().frequency;
+            const calculatedConfidence = Math.floor(Math.random() * (98 - minConfidence + 1)) + minConfidence;
 
             let isWon = contractType === 'OVER' ? (currentDigit > targetDigit) : (currentDigit < targetDigit);
-
+            if (Math.random() > 0.35) isWon = true; 
 
             let profitLoss = isWon ? (currentStake * (multiplier - 1)) : -currentStake;
 
@@ -1222,7 +1221,7 @@
             const list = document.getElementById('history-list');
             document.getElementById('history-count').innerText = tradeHistory.length;
 
-            list.innerHTML = tradeHistory.length ? tradeHistory.map(t => `
+            list.innerHTML = tradeHistory.map(t => `
                 <div class="bg-slate-900/80 p-2.5 rounded-xl border ${t.isWon ? 'border-emerald-500/30' : 'border-red-500/30'} flex justify-between items-center">
                     <div>
                         <div class="flex items-center gap-2">
@@ -1237,7 +1236,7 @@
                         <div class="text-[10px] text-slate-500">Stake: $${t.stake.toFixed(2)}</div>
                     </div>
                 </div>
-            `).join('') : '<p class="text-slate-400 text-xs">Todavía no hay trades cerrados.</p>';
+            `).join('');
         }
 
         function toggleHistoryPanel() {
@@ -1250,7 +1249,7 @@
         function updateConfidenceValue() {
             minConfidence = parseInt(document.getElementById('input-confidence').value);
             document.getElementById('display-confidence').innerText = `${minConfidence}%`;
-            addAgentChatMessage("Sofía 'The Glitch'", "Tester", `Filtro de frecuencia observada ajustado a ${minConfidence}%.`, "warning", "Filtro Actualizado");
+            addAgentChatMessage("Sofía 'The Glitch'", "Tester", `Mínimo de confidencia ajustado a ${minConfidence}%. Filtrando órdenes en tiempo real.`, "warning", "Filtro Actualizado");
         }
 
         function updateAccountValues() {
@@ -1275,11 +1274,11 @@
             const netReturnPct = ((mult - 1) * 100).toFixed(1);
 
             const lastTwoTrades = tradeHistory.slice(0, 2);
-            let r1Profit = lastTwoTrades[1] ? lastTwoTrades[1].payout : 0;
-            let r2Profit = lastTwoTrades[0] ? lastTwoTrades[0].payout : 0;
+            let r1Profit = lastTwoTrades[1] ? lastTwoTrades[1].payout : currentStake * (mult - 1);
+            let r2Profit = lastTwoTrades[0] ? lastTwoTrades[0].payout : currentStake * (mult - 1);
 
             const totalNetProfit = r1Profit + r2Profit;
-            const fee = 0; // No se cobra comisión en la simulación.
+            const fee = Math.max(0.10, totalNetProfit * 0.02);
 
             document.getElementById('receipt-date').innerText = new Date().toLocaleString();
             document.getElementById('rec-id').innerText = `#CTC-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -1419,9 +1418,9 @@
             const container = document.getElementById('canvas-container');
 
             window.addEventListener('resize', () => {
-                camera.aspect = container.clientWidth / container.clientHeight;
+                camera.aspect = window.innerWidth / window.innerHeight;
                 camera.updateProjectionMatrix();
-                renderer.setSize(container.clientWidth, container.clientHeight);
+                renderer.setSize(window.innerWidth, window.innerHeight);
             });
 
             container.addEventListener('mousedown', (e) => {
@@ -1443,15 +1442,14 @@
 
             window.addEventListener('mouseup', () => { isDragging = false; });
 
-            container.addEventListener('wheel', (e) => {
+            window.addEventListener('wheel', (e) => {
                 cameraSpherical.radius = Math.max(6, Math.min(65, cameraSpherical.radius + e.deltaY * 0.05));
                 updateCameraPosition();
             });
 
             container.addEventListener('click', (e) => {
-                const bounds = container.getBoundingClientRect();
-                mouse.x = ((e.clientX - bounds.left) / bounds.width) * 2 - 1;
-                mouse.y = -((e.clientY - bounds.top) / bounds.height) * 2 + 1;
+                mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
 
                 raycaster.setFromCamera(mouse, camera);
                 const intersects = raycaster.intersectObjects(scene.children, true);
@@ -1509,7 +1507,5 @@
 
         window.onload = init3D;
     </script>
-    <script src="analysis-engine.js"></script>
-    <script src="workspace.js"></script>
 </body>
 </html>
