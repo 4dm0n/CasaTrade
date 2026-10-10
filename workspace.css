@@ -37,6 +37,48 @@ button:hover { box-shadow:0 0 16px #62e8ed22; }
 #agent-list { display:grid; gap:8px; margin-bottom:16px; }
 #agent-list button { text-align:left; padding:10px; background:#14263c; border-radius:8px; font-size:12px; }
 #invoice-modal { overflow:auto; }
+.contract-title { display:flex; justify-content:space-between; align-items:center; }
+.contract-title h2 { font-size:20px; font-weight:800; margin-top:5px; }
+.eyebrow { font:9px 'JetBrains Mono',monospace; letter-spacing:2px; color:var(--cyan); }
+.account-tag { font:10px 'JetBrains Mono',monospace; padding:6px 9px; border:1px solid var(--edge); border-radius:7px; color:#9eafc3; }
+.account-metrics { margin-bottom:8px; }
+.account-metrics strong { font-size:19px; }
+#balance-value { background:transparent; text-align:left; white-space:nowrap; }
+#display-pnl[data-sign=positive] { color:#67e8bf; }
+#display-pnl[data-sign=negative] { color:#fb7185; }
+.history-summary { margin:0 0 10px; flex-shrink:0; }
+.history-summary strong { font-size:20px; }
+#history-pnl[data-sign=positive],#history-wins { color:#67e8bf; }
+#history-pnl[data-sign=negative],#history-losses { color:#fb7185; }
+#history-summary-caption { margin-bottom:14px; flex-shrink:0; }
+#config-widget label { display:block; color:#9eafc3; font-size:9px; font-weight:700; margin-bottom:7px; }
+#config-widget input:not([type=range]),#config-widget select { width:100%; min-width:0; background:#0a1525; border:1px solid #2b4158; color:#e4f4fa; border-radius:9px; padding:10px; font:12px 'JetBrains Mono',monospace; }
+#config-widget input[type=range] { width:100%; accent-color:var(--cyan); }
+.risk-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:18px 0 12px; }
+.factor-input { position:relative; }
+.factor-input span { position:absolute; top:8px; left:10px; color:var(--cyan); }
+#config-widget .factor-input input { padding-left:28px; }
+.next-stake-row,.payout-row { display:flex; justify-content:space-between; gap:12px; padding:12px; background:#102739; border:1px solid #204556; border-radius:10px; margin:12px 0; font-size:11px; }
+.next-stake-row p { font-size:9px; color:#8fa5bc; margin-top:4px; }
+.next-stake-row strong { font:18px 'JetBrains Mono',monospace; color:var(--cyan); }
+.mode-switch { display:flex; gap:4px; border:1px solid var(--edge); border-radius:10px; padding:4px; margin:20px 0 10px; }
+.mode-switch button { flex:1; padding:10px 4px; border-radius:7px; font-size:11px; color:#93a9be; }
+.mode-switch button[aria-pressed=true] { background:#1f495b; color:#81f0ef; box-shadow:inset 0 0 0 1px #4bbac077; }
+#manual-contract-fields { margin-top:16px; min-width:0; }
+#manual-contract-fields:disabled { opacity:.4; }
+.filter-heading { display:flex; justify-content:space-between; margin-top:18px; font-size:11px; color:#fbbf24; }
+.payout-row { font-size:10px; }
+.secondary-action { width:100%; padding:10px; border:1px solid var(--edge); border-radius:8px; color:#91a3bb; font-size:11px; }
+.selection-card { margin-top:16px; padding:12px; border:1px solid #26465d; border-radius:12px; background:#102035; }
+.selection-card strong { font-size:12px; color:var(--cyan); }
+.selection-card p { margin-top:6px; }
+.feed-status-row { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px; font-size:10px; color:#9eafc3; }
+.feed-status-row button { padding:7px 10px; border:1px solid #2b5365; border-radius:7px; color:var(--cyan); flex-shrink:0; }
 @media(max-width:1050px) { body { overflow:auto; } #workspace { grid-template-columns:minmax(0,1fr) 360px; min-height:650px; } body > header > div { flex-wrap:wrap; } }
 @media(max-width:760px) { #workspace { display:flex; flex-direction:column; height:auto; padding:0 12px 16px; } #stage { height:520px; flex-shrink:0; } #dock { min-height:560px; } .workspace-panel { max-height:550px!important; } body > header { padding:12px; } body > header > div { width:100%; padding:12px!important; } h1 { flex-wrap:wrap; } #orders > span,#cameras > span { display:none; } }
 @media(prefers-reduced-motion:reduce) { * { animation:none!important; transition:none!important; } }
+@media(max-width:760px) {
+    .workspace-panel { max-height:none!important; flex:none; overflow:visible; }
+    .stage-label { right:16px; }
+    .stage-label small { line-height:1.6; }
+}

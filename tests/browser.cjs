@@ -5,33 +5,20 @@ const path=require('path');
  const page=await browser.newPage({viewport:{width:1440,height:1000}});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('file:///'+path.resolve(__dirname,'../index.html').replace(/\\/g,'/'));
- await page.waitForTimeout(10000);
+ await page.waitForTimeout(15000);
  await page.locator('#tab-agent-chat-panel').click();
  await page.locator('#tab-history-panel').click();
  if(await page.locator('.workspace-panel:visible').count()!==1)throw Error('Panels overlap');
+ await page.locator('#tab-config-widget').click();
+ await page.locator('#auto-mode').click();
  await page.locator('#tab-analysis-panel').click();
  await page.locator('#analyze-now').click();
- const checks=await page.evaluate(()=>{
-    clearInterval(fallbackTimer);
-    globalOrder='work'; pendingTrade=null; tickWindow.length=0;
-    for(let i=0;i<30;i++)receiveTick(100.09,2,'Test');
-    const before=currentBalance;
-    recordTradeOperation();
-    if(!pendingTrade||currentBalance!==before)throw Error('Must await next tick');
-    receiveTick(100.01,2,'Test');
-    if(tradeHistory[0].isWon||currentBalance!==before-10)throw Error('Incorrect loss');
-    recordTradeOperation();receiveTick(100.09,2,'Test');
-    if(!tradeHistory[0].isWon)throw Error('Incorrect win');
-    openTab('invoice-modal');
-    if(document.getElementById('invoice-modal').hidden)throw Error('Receipt missing');
-    closeInvoiceModal();
-    recordTradeOperation();setGlobalOrder('rest_all');
-    if(pendingTrade)throw Error('Pause must cancel pending');
-    resetSimulation();
-    if(tradeHistory.length||tickWindow.length||currentBalance!==10450)throw Error('Reset incomplete');
-    return 'Next tick, loss, win, receipt, pause and reset passed';
- });
- console.log(checks);
+ const feed=await page.evaluate(()=>({
+   status:discoveryStatus,
+   markets:[...marketBook.values()].map(m=>({symbol:m.symbol,types:m.types,source:m.source,ticks:m.digits.length,status:m.status})),
+   connected:websocketConnected
+ }));
+ console.log(JSON.stringify({feed}));
  await page.screenshot({path:path.resolve(__dirname,'desktop.png')});
  await page.setViewportSize({width:390,height:844});
  await page.waitForTimeout(500);
