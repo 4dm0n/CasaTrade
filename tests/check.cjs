@@ -3,7 +3,7 @@ const vm=require('vm');
 const assert=require('node:assert/strict');
 const path=require('path');
 const root=path.resolve(__dirname,'..');
-for(const name of ['workspace.js','analysis-engine.js','market-feed.js']) new vm.Script(fs.readFileSync(path.join(root,name),'utf8'));
+for(const name of ['workspace.js','analysis-engine.js','market-feed.js','office-scene.js']) new vm.Script(fs.readFileSync(path.join(root,name),'utf8'));
 const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
 for(const match of html.matchAll(/<script>([\s\S]*?)<\/script>/g)) new vm.Script(match[1]);
 const engine=require('../analysis-engine.js');
