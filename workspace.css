@@ -36,6 +36,25 @@ button:hover { box-shadow:0 0 16px #62e8ed22; }
 #action-feedback { padding:12px 18px; border-top:1px solid var(--edge); color:#aad3e0; font-size:11px; flex-shrink:0; min-height:46px; }
 #agent-list { display:grid; gap:8px; margin-bottom:16px; }
 #agent-list button { text-align:left; padding:10px; background:#14263c; border-radius:8px; font-size:12px; }
+#dock .workspace-panel:not([hidden]) { animation:panel-arrive .2s ease-out both; }
+#tabs button { transition:color .18s,border-color .18s,background .18s,transform .18s!important; }
+#tabs button:active { transform:translateY(1px); }
+#chat-messages-container { display:flex; flex-direction:column; gap:16px; padding:14px 3px 12px 0; scroll-behavior:smooth; }
+.chat-online-dot { display:inline-block; width:7px; height:7px; margin-right:5px; border-radius:50%; background:#53d6a5; box-shadow:0 0 8px #53d6a588; }
+.chat-message { display:flex; align-items:flex-end; gap:9px; max-width:100%; }
+.chat-avatar { display:grid; place-items:center; flex:0 0 30px; width:30px; height:30px; margin-bottom:3px; color:#83dce3; background:linear-gradient(145deg,#183749,#112336); border:1px solid #2c5868; border-radius:50%; font-size:11px; }
+.chat-message-content { min-width:0; max-width:calc(100% - 39px); }
+.chat-message-heading { display:flex; align-items:baseline; gap:7px; margin:0 0 5px 4px; }
+.chat-sender { color:#dcebf1; font-size:10px; font-weight:800; }
+.chat-role { color:#8197a8; font-size:9px; }
+.chat-bubble { position:relative; padding:10px 12px 21px; border:1px solid #243b50; border-radius:4px 15px 15px 15px; background:linear-gradient(145deg,#142538,#101c2c); color:#d2dee8; box-shadow:0 5px 14px #02081233; }
+.chat-bubble p { margin:0; font-size:11px; font-weight:500; line-height:1.55; overflow-wrap:anywhere; }
+.chat-time { position:absolute; right:10px; bottom:5px; color:#718499; font:9px 'JetBrains Mono',monospace; }
+.chat-decision { display:flex; align-items:center; gap:6px; margin:9px 0 0; padding:6px 8px; border-radius:8px; background:#17342f; color:#9ce4c5; font-size:9px; font-weight:700; line-height:1.4; }
+.chat-bubble-success { border-color:#28775c; background:linear-gradient(145deg,#14352f,#10282a); }
+.chat-bubble-danger { border-color:#743b4c; background:linear-gradient(145deg,#38232d,#271c29); }
+.chat-bubble-warning { border-color:#735c33; background:linear-gradient(145deg,#352d21,#28251f); }
+@keyframes panel-arrive { from { opacity:.65; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
 #invoice-modal { overflow:auto; }
 .contract-title { display:flex; justify-content:space-between; align-items:center; }
 .contract-title h2 { font-size:20px; font-weight:800; margin-top:5px; }
@@ -64,6 +83,7 @@ button:hover { box-shadow:0 0 16px #62e8ed22; }
 .mode-switch { display:flex; gap:4px; border:1px solid var(--edge); border-radius:10px; padding:4px; margin:20px 0 10px; }
 .mode-switch button { flex:1; padding:10px 4px; border-radius:7px; font-size:11px; color:#93a9be; }
 .mode-switch button[aria-pressed=true] { background:#1f495b; color:#81f0ef; box-shadow:inset 0 0 0 1px #4bbac077; }
+.mode-switch #turbo-mode[aria-pressed=true] { background:#574019; color:#ffd27a; box-shadow:inset 0 0 0 1px #edb95788,0 0 14px #edb9571f; }
 #manual-contract-fields { margin-top:16px; min-width:0; }
 #manual-contract-fields:disabled { opacity:.4; }
 .filter-heading { display:flex; justify-content:space-between; margin-top:18px; font-size:11px; color:#fbbf24; }
@@ -81,4 +101,5 @@ button:hover { box-shadow:0 0 16px #62e8ed22; }
     .workspace-panel { max-height:none!important; flex:none; overflow:visible; }
     .stage-label { right:16px; }
     .stage-label small { line-height:1.6; }
+    #chat-messages-container { min-height:320px; max-height:65vh; }
 }
