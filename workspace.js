@@ -105,7 +105,7 @@ function renderAnalysis(message) {
         ? selectedCandidate ? `Frecuencia ${a.frequency.toFixed(1)}% · filtro ${minConfidence}% · mayor desviación observada frente a la distribución uniforme. No implica ventaja futura.` : 'Esperando 100 ticks por mercado y una frecuencia que cumpla el filtro. Los datos demo no participan en la selección automática.'
         : `Contrato fijo: ${selectionLabel(manualSelection())}. No se cambia de barrera ni mercado automáticamente.`;
     document.getElementById('digit-bars').innerHTML = a.counts.map((n,d) => `<div class="digit-column"><span>${n}</span><div class="digit-bar" style="height:${a.size ? n / Math.max(...a.counts,1) * 76 : 3}px"></div>${d}</div>`).join('');
-    document.getElementById('analysis-message').textContent = message || (pendingTrade ? `Trade preparado: ${selectionLabel(pendingTrade)} por ${usd(pendingTrade.stake)}. Esperando su siguiente tick.` : !websocketConnected && tradingMode==='auto' ? 'Esperando conexión y ticks en vivo. La selección automática no usa datos demo.' : globalOrder !== 'work' ? 'Operativa pausada. La recepción de ticks y el análisis continúan.' : !selectedCandidate ? `Recibiendo datos. Sin entrada que cumpla el filtro ${minConfidence}% en los mercados preparados.` : !active || Date.now()-active.lastTickAt>5000 ? 'Sin ticks recientes para el mercado seleccionado.' : a.size < 30 ? `Recolectando datos: faltan ${30-a.size} ticks para analizar.` : a.eligible ? 'Filtro de frecuencia cumplido. El próximo ciclo podrá preparar un trade.' : `Entrada descartada: frecuencia ${a.frequency.toFixed(1)}% inferior al filtro ${minConfidence}%.`);
+    document.getElementById('analysis-message').textContent = message || (pendingTrade ? `Trade preparado: ${selectionLabel(pendingTrade)} por ${usd(pendingTrade.stake)}. Esperando su siguiente tick.` : !websocketConnected && tradingMode==='auto' ? 'Esperando conexión y ticks en vivo. La selección automática no usa datos demo.' : !['work','chill'].includes(globalOrder) ? 'Operativa pausada. La recepción de ticks y el análisis continúan.' : !selectedCandidate ? `Recibiendo datos. Sin entrada que cumpla el filtro ${minConfidence}% en los mercados preparados.` : !active || Date.now()-active.lastTickAt>5000 ? 'Sin ticks recientes para el mercado seleccionado.' : a.size < 30 ? `Recolectando datos: faltan ${30-a.size} ticks para analizar.` : a.eligible ? 'Filtro de frecuencia cumplido. El próximo ciclo podrá preparar un trade.' : `Entrada descartada: frecuencia ${a.frequency.toFixed(1)}% inferior al filtro ${minConfidence}%.`);
     if(active && active.prices.length) {
         tickSource=active.source;lastTickAt=active.lastTickAt;
         wsPrice=active.quote;currentDigit=active.digits.at(-1);
@@ -131,7 +131,7 @@ function receiveTick(quote, precision, source, symbol='R_10', identity='') {
     if (pendingTrade?.symbol===symbol && m.sequence>pendingTrade.sequence) {
         const trade = pendingTrade;
         pendingTrade = null;
-        if (globalOrder === 'work' && Date.now()-trade.preparedAt<=10000) settlePendingTrade(trade,digit);
+        if ((globalOrder === 'work'||globalOrder === 'chill') && Date.now()-trade.preparedAt<=10000) settlePendingTrade(trade,digit);
     }
     m.digits.push(digit);m.prices.push(quote);
     if(m.digits.length>100)m.digits.shift();
@@ -147,8 +147,9 @@ function settlePendingTrade(t,digit) {
     updateTradeStats();
     renderTradeHistory();
     validationRounds++;
-    addAgentChatMessage('Sofía', 'Validación de trade', `${selectionLabel(t)} · dígito ${digit}. Resultado ${result.profit.toFixed(2)} USD; stake ${usd(t.stake)}; frecuencia previa ${t.frequency.toFixed(1)}%.`, result.won ? 'success':'danger','TRADE');
-    const person = people.find(p=>p.cfg.id==='tester');
+    addAgentChatMessage(t.executionMode==='direct'?'Carlos':'Sofía', t.executionMode==='direct'?'Resultado · sin tester':'Validación de trade', `${selectionLabel(t)} · dígito ${digit}. Resultado ${result.profit.toFixed(2)} USD; stake ${usd(t.stake)}; frecuencia previa ${t.frequency.toFixed(1)}%.`, result.won ? 'success':'danger','TRADE');
+    const person = people.find(p=>p.cfg.id===(t.executionMode==='direct'?'analyst':'tester'));
+    if(typeof reactToTrade==='function')reactToTrade(result,t);
     if(person) spawnFloatingMoneyBadge(person.group.position,Math.abs(result.profit),result.won);
     feedback(`Trade #${tradeHistory.length} cerrado: ${result.profit.toFixed(2)} USD. Consulta Historial.`);
     if(validationRounds>=2) { feedback('Dos trades cerrados. El comprobante está disponible en la pestaña Recibo.'); validationRounds=0; }
@@ -161,7 +162,7 @@ recordTradeOperation = function () {
     let reason = '';
     if (pendingTrade) reason = 'Ya hay un trade esperando el siguiente tick.';
     else if(balanceEditing) reason='Finaliza la edición del balance antes de abrir un trade.';
-    else if(globalOrder !== 'work') reason = 'Operativa pausada. Selecciona Full Work para habilitar trades.';
+    else if(!['work','chill'].includes(globalOrder)) reason = 'Operativa pausada. Selecciona Full Work para habilitar trades.';
     else if(!selection) reason='Ningún mercado cumple el filtro automático con 100 ticks recientes.';
     else if(!market || Date.now()-market.lastTickAt>5000) reason='Sin ticks recientes. Esperando la fuente de datos.';
     else if(market.source==='live'&&!market.types.includes(selection.contract)) reason='Este contrato no está disponible para el mercado seleccionado.';
@@ -170,17 +171,21 @@ recordTradeOperation = function () {
     else if(!a.eligible) reason=`Sin entrada: frecuencia ${a.frequency.toFixed(1)}% < filtro ${minConfidence}%.`;
     else if(!Number.isFinite(stake)||stake<=0||!Number.isFinite(currentBalance)||stake>currentBalance) reason='Entrada bloqueada: el balance debe cubrir el siguiente stake y la martingala debe estar entre x1 y x10.';
     if(reason) { renderAnalysis(reason); feedback(reason); return; }
+    if(globalOrder==='work') {
+        const recent=TradeAnalysis.analyze(market.digits.slice(-20),selection.contract,selection.target,minConfidence);
+        if(recent.frequency<minConfidence){const reason=`Tester: entrada descartada; los últimos 20 ticks tienen frecuencia ${recent.frequency.toFixed(1)}% < ${minConfidence}%.`;renderAnalysis(reason);feedback(reason);return;}
+    }
     const {contract,target,symbol}=selection;
-    pendingTrade={contract,target,symbol,stake,multiplier:getOverUnderPayoutMultiplier(contract,target),frequency:a.frequency,source:market.source,sequence:market.sequence,preparedAt:Date.now(),mode:tradingMode};
+    pendingTrade={contract,target,symbol,stake,multiplier:getOverUnderPayoutMultiplier(contract,target),frequency:a.frequency,source:market.source,sequence:market.sequence,preparedAt:Date.now(),mode:tradingMode,executionMode:globalOrder==='chill'?'direct':'tested'};
     renderAnalysis();
-    feedback('Análisis validado. Trade preparado para el siguiente tick.');
+    feedback(globalOrder==='chill'?'Oportunidad: señal del analista preparada sin tester.':'Analista y tester: trade preparado para el siguiente tick.');
     addAgentChatMessage('Carlos','Análisis estadístico',`${selectionLabel(pendingTrade)} · ${a.size} ticks; frecuencia observada ${a.frequency.toFixed(1)}%. Preparando trade por ${usd(stake)}.`, 'info','TRADE');
 };
-triggerCoherentDocumentHandover = function () { if(globalOrder==='work' && !pendingTrade) recordTradeOperation(); };
+triggerCoherentDocumentHandover = function () { if(['work','chill'].includes(globalOrder) && !pendingTrade) recordTradeOperation(); };
 setupDerivWebSocket = connectMarketFeed;
 fallbackPriceSimulation = startOfflineFeed;
 const originalOrder=setGlobalOrder;
-setGlobalOrder=function(order) { originalOrder(order); if(order!=='work')pendingTrade=null; renderAnalysis(); feedback(`Orden aplicada: ${order==='work'?'análisis activo':'operativa pausada'}.`); document.querySelectorAll('#orders button').forEach(b=>b.setAttribute('aria-pressed',String(b.getAttribute('onclick').includes(`'${order}'`)))); };
+setGlobalOrder=function(order) { originalOrder(order); if(!['work','chill'].includes(order))pendingTrade=null; renderAnalysis(); feedback(`Orden aplicada: ${order==='work'?'analista + tester':order==='chill'?'Oportunidad: señales del analista sin tester':'operativa pausada'}.`); document.querySelectorAll('#orders button').forEach(b=>b.setAttribute('aria-pressed',String(b.getAttribute('onclick').includes(`'${order}'`)))); };
 const originalReset=resetSimulation;
 resetSimulation=function() {
     pendingTrade=null; tickWindow.length=0; lossStreak=0;martingaleFactor=1;balanceEditing=false;
@@ -277,7 +282,7 @@ function mountWorkspace() {
     document.getElementById('stage').prepend(document.getElementById('canvas-container'));
     document.getElementById('stage-footer').append(orders,cameras);
     const dock=document.getElementById('dock');
-    const tabs=[['analysis-panel','Análisis'],['config-widget','Contrato'],['agent-chat-panel','Chat'],['history-panel','Historial'],['agent-sidebar','Agentes'],['invoice-modal','Recibo']];
+    const tabs=[['analysis-panel','Análisis'],['config-widget','Contrato'],['agent-chat-panel','Chat'],['history-panel','Historial'],['agent-sidebar','Equipo'],['invoice-modal','Recibo']];
     tabs.forEach(([id,label],i)=>{
         const panel=document.getElementById(id); panel.classList.add('workspace-panel'); panel.setAttribute('role','tabpanel'); panel.setAttribute('aria-labelledby',`tab-${id}`);
         if(i) dock.insertBefore(panel,document.getElementById('action-feedback'));

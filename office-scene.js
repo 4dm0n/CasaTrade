@@ -2,6 +2,18 @@
 const officeSeats = new Map();
 const officeObstacles = [];
 const officeScreens = [];
+
+// Variable global para el Modo Turbo (multiplicador de velocidad)
+let isTurboMode = false;
+window.toggleTurboMode = function() {
+    isTurboMode = !isTurboMode;
+    const btn = document.getElementById('turbo-mode-btn');
+    if(btn) {
+        btn.style.background = isTurboMode ? '#10b981' : '#1e293b';
+        btn.textContent = isTurboMode ? '⚡ MODO TURBO: ON' : '⚡ MODO TURBO: OFF';
+    }
+};
+
 const officePalette = {
     shell: new THREE.MeshStandardMaterial({color:0x162b3b,roughness:.62,metalness:.35}),
     edge: new THREE.MeshStandardMaterial({color:0x40596b,roughness:.32,metalness:.7}),
@@ -11,6 +23,7 @@ const officePalette = {
     white: new THREE.MeshStandardMaterial({color:0xc4d9e2,roughness:.65}),
     leaf: new THREE.MeshStandardMaterial({color:0x238772,roughness:.85})
 };
+
 function officeBox(parent,w,h,d,x,y,z,material=officePalette.shell,round=.06) {
     const r=Math.min(round,w/3,h/3,d/3);
     const shape=new THREE.Shape();
@@ -20,10 +33,12 @@ function officeBox(parent,w,h,d,x,y,z,material=officePalette.shell,round=.06) {
     geometry.translate(0,0,-d/2+r);
     const mesh=new THREE.Mesh(geometry,material);mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;parent.add(mesh);return mesh;
 }
+
 function officeCylinder(parent,radius,height,x,y,z,material=officePalette.edge) {
     const mesh=new THREE.Mesh(new THREE.CylinderGeometry(radius,radius,height,12),material);
     mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;parent.add(mesh);return mesh;
 }
+
 function officeLabel(text,width,height,color='#69e1e4') {
     const canvas=document.createElement('canvas');canvas.width=1024;canvas.height=160;
     const ctx=canvas.getContext('2d');ctx.fillStyle='#0a1422';ctx.fillRect(0,0,1024,160);
@@ -31,10 +46,12 @@ function officeLabel(text,width,height,color='#69e1e4') {
     const texture=new THREE.CanvasTexture(canvas);texture.encoding=THREE.sRGBEncoding;
     return new THREE.Mesh(new THREE.PlaneGeometry(width,height),new THREE.MeshBasicMaterial({map:texture}));
 }
+
 function registerSeat(id,x,z,yaw,kind,approach) {
     const seat={id,position:new THREE.Vector3(x,0,z),yaw,kind,surface:.98,approach:new THREE.Vector3(...approach),occupant:null};
     officeSeats.set(id,seat);return seat;
 }
+
 function makeOfficeChair(seat) {
     const group=new THREE.Group();group.position.copy(seat.position);group.rotation.y=seat.yaw;scene.add(group);
     officeCylinder(group,.13,.68,0,.46,0);
@@ -53,6 +70,7 @@ function makeOfficeChair(seat) {
     officeBox(group,.7,.035,.035,0,1.9,-.63,officePalette.cyan);
     group.userData.seatId=seat.id;
 }
+
 function officeMonitor(parent,x,y,z,width=2.5,height=1.3) {
     officeBox(parent,.65,.06,.45,x,y-height/2-.45,z,officePalette.edge);
     officeBox(parent,.09,.6,.09,x,y-height/2-.2,z,officePalette.edge);
@@ -61,6 +79,7 @@ function officeMonitor(parent,x,y,z,width=2.5,height=1.3) {
     screen.position.set(x,y,z+.074);parent.add(screen);
     officeScreens.push({mesh:screen,kind:'desk'});
 }
+
 function makeWorkstation(id,x,z,index) {
     const group=new THREE.Group();group.position.set(x,0,z);scene.add(group);
     officeBox(group,6.3,.17,2.8,0,1.94,0,officePalette.shell);
@@ -79,6 +98,7 @@ function makeWorkstation(id,x,z,index) {
     const seat=registerSeat(`work-${id}`,x,z+2.5,Math.PI,'desk',[x+1.7,0,z+2.7]);makeOfficeChair(seat);
     officeObstacles.push({minX:x-3.65,maxX:x+3.65,minZ:z-1.9,maxZ:z+1.9});
 }
+
 function makePlant(x,z) {
     officeCylinder(scene,.58,.8,x,.4,z,officePalette.shell);
     officeCylinder(scene,.06,2.4,x,1.7,z,officePalette.edge);
@@ -88,6 +108,7 @@ function makePlant(x,z) {
         leaf.position.set(x+Math.sin(angle)*.35,1.3+i*.22,z+Math.cos(angle)*.35);leaf.castShadow=true;scene.add(leaf);
     }
 }
+
 buildMirroredSkyBackground=function(){};
 buildRichOfficeArchitecture=function() {
     renderer.outputEncoding=THREE.sRGBEncoding;renderer.toneMappingExposure=1;
@@ -100,7 +121,7 @@ buildRichOfficeArchitecture=function() {
     const rim=new THREE.DirectionalLight(0x4aa6be,.65);rim.position.set(12,15,-20);scene.add(rim);
     officeBox(scene,61,.25,44,0,-.16,0,new THREE.MeshStandardMaterial({color:0x152532,roughness:.77,metalness:.16}));
     const grid=new THREE.GridHelper(60,30,0x284356,0x213747);grid.position.y=-.025;scene.add(grid);
-    // Low-glare architectural lighting and open circulation lanes.
+    
     for(const x of [-29,29])officeBox(scene,.045,.02,40,x,.006,0,officePalette.cyan,.005);
     officeBox(scene,58,10,.5,0,5,-20,officePalette.shell);
     for(let x=-27;x<=27;x+=6)officeBox(scene,.05,9,.06,x,4.5,-19.72,officePalette.edge,.008);
@@ -116,7 +137,7 @@ buildRichOfficeArchitecture=function() {
         for(let j=0;j<4;j++)officeBox(scene,.035,.12,1.6,-33.38-(i%3)*4,j*1.6,-23+i*4,officePalette.cyan,.006);
     }
     [-17,0,17].forEach((x,i)=>makeWorkstation(['analyst','tester','manager'][i],x,-10,i));
-    // Shared client table: five real, individually assigned chairs.
+    
     officeBox(scene,11,.17,3.8,-13,1.94,8,officePalette.shell);
     for(const x of [-17,-9])officeBox(scene,.35,1.8,2.6,x,.9,8,officePalette.edge);
     officeObstacles.push({minX:-19,maxX:-7,minZ:5.6,maxZ:10.4});
@@ -125,7 +146,7 @@ buildRichOfficeArchitecture=function() {
         const seat=registerSeat(`work-client${i+1}`,x,z,yaw,'meeting',[x+1.4,0,z+(yaw===0?-.6:.6)]);makeOfficeChair(seat);
         officeBox(scene,1.6,.065,.9,x,2.05,z+(yaw===0?1.6:-1.6),officePalette.dark);
     });
-    // Eight lounge cushions, one per person; no shared destination points.
+    
     [7,15].forEach((z,row)=>{
         const yaw=row?Math.PI:0;
         officeBox(scene,13,.64,1.8,16,.52,z,officePalette.shell);
@@ -151,6 +172,7 @@ function officePath(start,end) {
     const key=(x,z)=>`${x},${z}`;
     const blocked=(x,z)=>officeObstacles.some(o=>x>o.minX&&x<o.maxX&&z>o.minZ&&z<o.maxZ);
     const sx=Math.round(start.x),sz=Math.round(start.z),ex=Math.round(end.x),ez=Math.round(end.z);
+    if(sx===ex && sz===ez) return [end.clone()];
     const frontier=[{x:sx,z:sz,g:0,f:0}],best=new Map([[key(sx,sz),0]]),parents=new Map();
     let reached=false;
     while(frontier.length){
@@ -168,15 +190,148 @@ function officePath(start,end) {
     return route;
 }
 
+const clientBusinessDialogues = [
+    "Negociando expansión de capital para el fondo trimestral.",
+    "Revisando contratos de liquidez con la mesa central.",
+    "Evaluando propuesta de coinversión en sintéticos.",
+    "Coordinando transferencia de activos de alto rendimiento.",
+    "Discutiendo diversificación de riesgo en volatilidad alta."
+];
+
+const agentThoughts = {
+    analyst: [
+        "Analizando racha de dígitos en Volatility 10...",
+        "Patrón de sobrecompra detectado en tick.",
+        "Filtrando confidencia para entrada de contrato.",
+        "Carlos revisando tendencia de alta frecuencia."
+    ],
+    tester: [
+        "Verificando respuesta de ejecución de orden...",
+        "Sofía validando latencia en el servidor.",
+        "Comprobando resultados de contratos Over/Under."
+    ],
+    manager: [
+        "Don Mateo supervisando operaciones globales de la mesa.",
+        "Monitoreando rendimiento general del equipo corporativo.",
+        "Revisando estabilidad financiera de la sesión actual."
+    ],
+    client1: clientBusinessDialogues,
+    client2: clientBusinessDialogues,
+    client3: clientBusinessDialogues,
+    client4: clientBusinessDialogues,
+    client5: clientBusinessDialogues
+};
+
 Person3D=class {
     constructor(cfg,index){
-        this.cfg=cfg;this.index=index;this.home=officeSeats.get(`work-${cfg.id}`);this.rest=officeSeats.get(`rest-${index}`);
+        this.cfg=cfg;this.index=index;
+        this.home=officeSeats.get(`work-${cfg.id}`) || officeSeats.get(`work-client1`);
+        this.rest=officeSeats.get(`rest-${index}`);
         this.group=new THREE.Group();this.group.userData.person=this;scene.add(this.group);
         this.group.position.copy(this.home.approach);this.group.rotation.y=this.home.yaw;
         this.seat=null;this.goal=null;this.state='standing';this.sitAmount=0;this.time=index*.7;
         this.isSitting=false;this.isWalking=false;this.statusText='Preparando estación';this.interactionTimer=6;
-        this.buildBodyParts();people.push(this);
+        
+        this.createSpeechBubble();
+        this.thoughtTimer = Math.random() * 4;
+
+        this.buildBodyParts();
+        people.push(this);
     }
+
+    createSpeechBubble() {
+        const bubble = document.createElement('div');
+        bubble.className = 'agent-speech-bubble';
+        
+        let borderColor = 'rgba(56, 189, 248, 0.4)';
+        let textColor = '#f8fafc';
+
+        if (this.cfg.id === 'analyst') {
+            borderColor = 'rgba(239, 68, 68, 0.6)';
+            textColor = '#fca5a5';
+        } else if (this.cfg.id === 'tester') {
+            borderColor = 'rgba(16, 185, 129, 0.6)';
+            textColor = '#6ee7b7';
+        } else if (this.cfg.id === 'manager') {
+            borderColor = 'rgba(245, 158, 11, 0.7)';
+            textColor = '#fde68a';
+        } else if (this.cfg.isClient) {
+            borderColor = 'rgba(139, 92, 246, 0.5)';
+            textColor = '#c4b5fd';
+        }
+
+        bubble.style.cssText = `
+            position: absolute;
+            background: rgba(15, 23, 42, 0.65);
+            color: ${textColor};
+            border: 1px solid ${borderColor};
+            border-radius: 10px;
+            padding: 4px 8px;
+            font-size: 8px;
+            font-weight: 200;
+            max-width: 80px;
+            white-space: normal;
+            word-break: break-word;
+            text-align: center;
+            pointer-events: none;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+            transition: opacity 0.2s ease;
+            opacity: 0;
+            z-index: 50;
+            transform: translate(-50%, -100%);
+        `;
+        document.body.appendChild(bubble);
+        this.bubbleElement = bubble;
+    }
+
+    updateSpeechBubblePosition() {
+        if (!this.bubbleElement || !this.group) return;
+
+        const headPos = new THREE.Vector3();
+        this.group.getWorldPosition(headPos);
+        headPos.y += 2.9;
+
+        const vector = headPos.clone();
+        vector.project(camera);
+
+        if (vector.z > 1 || Math.abs(vector.x) > 1 || Math.abs(vector.y) > 1) {
+            this.bubbleElement.style.display = 'none';
+            return;
+        }
+
+        this.bubbleElement.style.display = 'block';
+
+        let x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+        let y = (-(vector.y * 0.5) + 0.5) * window.innerHeight;
+
+        if (typeof window.activeBubbleCoords === 'undefined') window.activeBubbleCoords = [];
+        
+        for (let pos of window.activeBubbleCoords) {
+            const dist = Math.hypot(pos.x - x, pos.y - y);
+            if (dist < 40) {
+                y -= 18;
+            }
+        }
+        window.activeBubbleCoords.push({ x, y });
+
+        this.bubbleElement.style.left = `${x}px`;
+        this.bubbleElement.style.top = `${y}px`;
+    }
+
+    triggerRandomThought() {
+        const thoughts = agentThoughts[this.cfg.id] || ["Monitoreando..."];
+        const randomText = thoughts[Math.floor(Math.random() * thoughts.length)];
+        
+        this.bubbleElement.innerHTML = randomText;
+        this.bubbleElement.style.opacity = '1';
+
+        setTimeout(() => {
+            if (this.bubbleElement) {
+                this.bubbleElement.style.opacity = '0';
+            }
+        }, isTurboMode ? 1800 : 3500);
+    }
+
     buildBodyParts(){
         const cloth=new THREE.MeshStandardMaterial({color:this.cfg.topColor,roughness:.88});
         const trousers=new THREE.MeshStandardMaterial({color:this.cfg.bottomColor,roughness:.85});
@@ -213,57 +368,95 @@ Person3D=class {
         }
         this.group.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
     }
+
     desiredSeat(){return globalOrder==='rest_all'||(globalOrder==='rest_half'&&this.index%2===1)?this.rest:this.home;}
-    turnTo(angle,dt){const diff=Math.atan2(Math.sin(angle-this.group.rotation.y),Math.cos(angle-this.group.rotation.y));this.group.rotation.y+=Math.sign(diff)*Math.min(Math.abs(diff),dt*5);return Math.abs(diff)<.04;}
+    
+    turnTo(angle,dt){
+        const diff=Math.atan2(Math.sin(angle-this.group.rotation.y),Math.cos(angle-this.group.rotation.y));
+        this.group.rotation.y+=Math.sign(diff)*Math.min(Math.abs(diff),dt*5*(isTurboMode?3:1));
+        return Math.abs(diff)<.04;
+    }
+
     beginRoute(){
         const desired=this.desiredSeat();
-        // Leave the old seat through its approach before navigating around furniture.
         this.route=[];
         let from=this.group.position.clone();
-        if(this.seat){this.route.push(this.seat.approach.clone());from=this.seat.approach;this.seat.occupant=null;this.seat=null;}
+        if(this.seat){
+            this.route.push(this.seat.approach.clone());
+            from=this.seat.approach;
+            this.seat.occupant=null;
+            this.seat=null;
+        }
         const path=officePath(from,desired.approach);
-        if(!path.length){this.statusText='Esperando una ruta libre';this.state='standing';return;}
-        this.route.push(...path,desired.position.clone());this.goal=desired;this.state='walking';
+        if(!path.length){this.statusText='Esperando ruta';this.state='standing';return;}
+        this.route.push(...path,desired.position.clone());
+        this.goal=desired;
+        this.state='walking';
     }
+
     update(dt){
-        this.time+=dt;const desired=this.desiredSeat();
+        const turboMultiplier = isTurboMode ? 3.5 : 1.0;
+        const effectiveDt = dt * turboMultiplier;
+
+        this.time+=effectiveDt;
+        
+        this.thoughtTimer += effectiveDt;
+        if (!this.reaction && !this.activity && this.thoughtTimer >= (isTurboMode ? 3 : 10) + Math.random() * 4) {
+            this.thoughtTimer = 0;
+            this.triggerRandomThought();
+        }
+
+        const desired=this.desiredSeat();
         if(this.goal!==desired){
             if(this.sitAmount>0){this.state='standing-up';}
             else this.beginRoute();
         }
+
         if(this.state==='standing-up'){
-            this.sitAmount=Math.max(0,this.sitAmount-dt/0.65);this.statusText='Levantándose';
+            this.sitAmount=Math.max(0,this.sitAmount-effectiveDt/0.65);
+            this.statusText='Levantándose';
             if(!this.sitAmount)this.beginRoute();
         } else if(this.state==='walking'){
             const target=this.route[0];
             if(target){
-                const direction=target.clone().sub(this.group.position);direction.y=0;const distance=direction.length();
-                if(distance<.045){this.group.position.copy(target);this.route.shift();}
-                else {
-                    const step=Math.min(distance,dt*3.1);direction.normalize();this.turnTo(Math.atan2(direction.x,direction.z),dt);
+                const direction=target.clone().sub(this.group.position);
+                direction.y=0;
+                const distance=direction.length();
+                if(distance<.1){
+                    this.group.position.copy(target);
+                    this.route.shift();
+                } else {
+                    const step=Math.min(distance,effectiveDt*3.1);
+                    direction.normalize();
+                    this.turnTo(Math.atan2(direction.x,direction.z),effectiveDt);
                     const proposed=this.group.position.clone().addScaledVector(direction,step);
-                    const occupied=people.some(p=>p!==this&&p.group.position.distanceTo(proposed)<.85&&(p.state!=='walking'||p.index<this.index));
-                    if(!occupied)this.group.position.copy(proposed);
+                    this.group.position.copy(proposed);
                 }
                 this.statusText=this.goal.kind==='lounge'?'Caminando al descanso':'Caminando a su estación';
             } else {this.state='aligning';}
         } else if(this.state==='aligning'){
-            this.statusText='Alineándose con el asiento';
-            if(this.turnTo(this.goal.yaw,dt)&&!this.goal.occupant){this.seat=this.goal;this.seat.occupant=this.cfg.id;this.state='sitting-down';}
+            this.statusText='Alineándose';
+            if(this.turnTo(this.goal.yaw,effectiveDt)){
+                this.seat=this.goal;
+                this.seat.occupant=this.cfg.id;
+                this.state=this.goal.standing?'visiting':'sitting-down';
+            }
         } else if(this.state==='sitting-down'){
-            this.sitAmount=Math.min(1,this.sitAmount+dt/.8);this.statusText='Sentándose';
+            this.sitAmount=Math.min(1,this.sitAmount+effectiveDt/.8);
+            this.statusText='Sentándose';
             if(this.sitAmount===1)this.state='seated';
         } else if(this.state==='seated'){
-            const sel=typeof chooseSelection==='function'?chooseSelection():null;
-            this.statusText=this.seat.kind==='lounge'?'Sentado · en descanso':this.cfg.isClient?'Sentado · consultando el panel':`${globalOrder==='work'?'Analizando':'En espera'}${sel?` · ${sel.contract} ${sel.target}`:''}`;
-            if(this.cfg.id==='analyst'&&globalOrder==='work'){
-                this.interactionTimer-=dt;
-                if(this.interactionTimer<=0){this.interactionTimer=6;triggerCoherentDocumentHandover();}
+            this.statusText=this.seat.kind==='lounge'?'Sentado en descanso':this.cfg.isClient?'Cliente observando':'Analizando mercado';
+            if(this.cfg.id==='analyst'&&(globalOrder==='work'||globalOrder==='chill')){
+                this.interactionTimer-=effectiveDt;
+                if(this.interactionTimer<=0){this.interactionTimer=6;if(typeof triggerCoherentDocumentHandover==='function')triggerCoherentDocumentHandover();}
             }
         }
-        this.isWalking=this.state==='walking';this.isSitting=this.state==='seated';
+        this.isWalking=this.state==='walking';
+        this.isSitting=this.state==='seated';
         this.pose();
     }
+
     pose(){
         const s=this.sitAmount;const blend=s*s*(3-2*s);const walking=this.isWalking;
         this.rig.position.y=THREE.MathUtils.lerp(2.10,1.15,blend)+(walking?Math.abs(Math.sin(this.time*7))*.045:0);
@@ -271,8 +464,8 @@ Person3D=class {
         const working=this.goal?.kind==='desk';
         this.arms.forEach((arm,i)=>{
             const swing=walking?Math.sin(this.time*7+i*Math.PI)*.45:0;
-            arm.root.rotation.x=THREE.MathUtils.lerp(swing,working?-.9:-.25,blend);
-            arm.elbow.rotation.x=blend*(working?-.7:-1.1)+(this.isSitting&&working?Math.sin(this.time*5+i)*.045:0);
+            arm.root.rotation.set(THREE.MathUtils.lerp(swing,working?-.9:-.25,blend),0,0);
+            arm.elbow.rotation.set(blend*(working?-.7:-1.1)+(this.isSitting&&working?Math.sin(this.time*5+i)*.045:0),0,0);
         });
         this.legs.forEach((leg,i)=>{
             leg.root.rotation.x=THREE.MathUtils.lerp(walking?Math.sin(this.time*7+i*Math.PI)*-.4:0,-Math.PI/2,blend);
@@ -280,7 +473,7 @@ Person3D=class {
         });
         this.headRoot.rotation.y=this.isSitting?Math.sin(this.time*.5)*.035:0;
     }
-};
+}
 
 buildTradingScreens=function(){
     [-17,0,17].forEach((x,i)=>{
@@ -296,6 +489,7 @@ buildTradingScreens=function(){
     }
     officeScreens.filter(s=>s.kind==='desk').forEach((s,i)=>{s.mesh.material.color.set(0xffffff);s.mesh.material.map=tradingScreenMeshes[i%3].texture;s.mesh.material.needsUpdate=true;});
 };
+
 let lastOfficeScreenUpdate=-Infinity;
 updateTradingScreens=function(){
     const now=performance.now();if(now-lastOfficeScreenUpdate<200)return;lastOfficeScreenUpdate=now;
@@ -326,19 +520,35 @@ updateTradingScreens=function(){
         texture.needsUpdate=true;
     });
 };
+
 let officeLastFrame=0;
 animate=function(timestamp=performance.now()){
     requestAnimationFrame(animate);
     const dt=officeLastFrame?Math.min((timestamp-officeLastFrame)/1000,.05):1/60;officeLastFrame=timestamp;
-    people.forEach(p=>p.update(dt));updateTradingScreens();updateCameraPosition();updateFloatingBadges();
-    if(selectedAgent){document.getElementById('sidebar-status').textContent=selectedAgent.statusText;document.getElementById('sidebar-action').textContent=selectedAgent.state==='seated'?'Sentado en su asiento asignado':selectedAgent.statusText;}
-    renderer.render(scene,camera);
+    
+    window.activeBubbleCoords = [];
+
+    people.forEach(p=>{
+        p.update(dt);
+        p.updateSpeechBubblePosition();
+    });
+
+    if(typeof updateTradingScreens==='function') updateTradingScreens();
+    if(typeof updateCameraPosition==='function') updateCameraPosition();
+    if(typeof updateFloatingBadges==='function') updateFloatingBadges();
+
+    if(selectedAgent){
+        document.getElementById('sidebar-status').textContent=selectedAgent.statusText;
+        document.getElementById('sidebar-action').textContent=selectedAgent.state==='seated'?'Sentado en su asiento asignado':selectedAgent.statusText;
+    }
+    if(renderer && scene && camera) renderer.render(scene,camera);
 };
+
 const previousOfficeCamera=setCameraView;
 setCameraView=function(view){
     previousOfficeCamera(view);
     if(view==='overview'){cameraTarget.set(0,1,-2);cameraSpherical={radius:61,theta:.22,phi:Math.PI/3.1};}
     if(view==='manager')cameraTarget.set(17,2,-8);
     if(view==='lounge'){cameraTarget.set(16,1.5,11);cameraSpherical={radius:24,theta:.6,phi:Math.PI/3};}
-    updateCameraPosition();
+    if(typeof updateCameraPosition==='function') updateCameraPosition();
 };
