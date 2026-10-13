@@ -10,6 +10,52 @@ let martingaleFactor = 1;
 let selectedCandidate = null;
 let balanceEditing = false;
 
+// Turbo pairs the simulation speed (office-scene.js) with a fast tick engine.
+// 1 = el tick de demo que cierra el contrato abierto siempre es ganador (0 pérdidas simuladas).
+const TURBO_BIAS_WIN = 1;
+function turboActive() { return typeof isTurboMode !== 'undefined' && isTurboMode; }
+function turboWindowSize() { return TradeAnalysis.TURBO_WINDOW; }
+function tradingDigits(digits) { return turboActive() ? digits.slice(-turboWindowSize()) : digits; }
+function turboNote() {
+    return turboActive() ? 'Turbo: estrategia rápida de ticks sobre 30 ticks. En datos demo el feed favorece la entrada (simulación); en datos en vivo no existe ninguna ventaja real. ' : '';
+}
+function formatStrategy(candidate) {
+    const signals = candidate?.signals;
+    if (!signals) return 'score estándar';
+    const parts = [['momentum', signals.momentum], ['dígito caliente', signals.hot], ['reversión', signals.reversion]];
+    parts.sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+    return `${parts[0][0]} ${parts[0][1] >= 0 ? '+' : ''}${parts[0][1].toFixed(2)} · score ${Number(candidate.strategy).toFixed(2)}`;
+}
+function withForcedDigit(quote, digit, precision) {
+    const p = Number.isInteger(precision) && precision > 0 ? precision : 2;
+    const scale = Math.pow(10, p);
+    const scaled = Math.round(quote * scale);
+    return (Math.floor(scaled / 10) * 10 + digit) / scale;
+}
+// Demo-only bias: it never touches a live feed. With Turbo on, the demo tick that
+// resolves the open contract is always a winning digit, so the simulation shows
+// zero losses; live ticks keep their real values and the analysis stays real.
+function turboBiasQuote(quote, symbol, precision) {
+    if (!turboActive() || !pendingTrade || pendingTrade.symbol !== symbol) return quote;
+    if (pendingTrade.source !== 'demo') return quote;
+    const winners = [];
+    for (let digit = 0; digit <= 9; digit++) {
+        const wins = pendingTrade.contract === 'OVER' ? digit > pendingTrade.target : digit < pendingTrade.target;
+        if (wins) winners.push(digit);
+    }
+    if (!winners.length) return quote;
+    return withForcedDigit(quote, winners[Math.floor(Math.random() * winners.length)], precision);
+}
+function onTurboToggle(active) {
+    cancelPendingForSettings();
+    addAgentChatMessage('Don Mateo', 'Gerencia', active
+        ? 'Turbo activo: velocidad ×3.5 y estrategia rápida de ticks (momentum, dígito caliente, reversión) sobre una ventana de 30 ticks. Sobre datos demo el tick que cierra el contrato se fuerza a favor para la simulación (0 pérdidas simuladas); en datos en vivo el precio y el análisis son reales y no existe ninguna ventaja.'
+        : 'Turbo desactivado: vuelta a la selección estándar de 100 ticks y velocidad normal.', active ? 'warning' : 'info', 'MODO TURBO', 'manager');
+    renderAnalysis();
+    updateTradeStats();
+    feedback(active ? 'Turbo ON: velocidad ×3.5 y estrategia de ticks activa.' : 'Turbo OFF: velocidad y selección estándar.');
+}
+
 function usd(value) { return Number.isFinite(value) ? value.toLocaleString('en-US',{style:'currency',currency:'USD'}) : '—'; }
 function nextTradeStake() { return TradeAnalysis.nextStake(currentStake,martingaleFactor,lossStreak); }
 function manualSelection() {
@@ -17,6 +63,7 @@ function manualSelection() {
 }
 function chooseSelection() {
     if(pendingTrade)return pendingTrade;
+    if(turboActive())return TradeAnalysis.rankTurboAll([...marketBook.values()],minConfidence)[0] || null;
     if(tradingMode==='manual')return manualSelection();
     return TradeAnalysis.rankMarkets([...marketBook.values()],minConfidence)[0] || null;
 }
@@ -57,7 +104,7 @@ function setTradingMode(mode) {
     document.getElementById('auto-mode').setAttribute('aria-pressed',String(mode==='auto'));
     document.getElementById('mode-description').textContent=mode==='manual'
         ? 'Opera exclusivamente el mercado y Over/Under seleccionados, si cumplen el filtro.'
-        : 'Compara todas las volatilidades disponibles, incluidas 1s. Selección estadística con 100 ticks por mercado; un trade a la vez.';
+        : 'Compara todas las volatilidades disponibles, incluidas 1s. Selección estadística con 100 ticks por mercado; un trade a la vez. Con ⚡ Turbo se miran los últimos 30 ticks y decide el motor de estrategias rápidas.';
     renderAnalysis();updateTradeStats();feedback(mode==='manual'?'Modo manual: contrato y mercado fijos.':'Selección automática activa: comparando mercados con el mismo filtro.');
 }
 
@@ -79,7 +126,7 @@ function openTab(id) {
 function analysisSnapshot() {
     const selection=chooseSelection();
     const m=selection && marketBook.get(selection.symbol);
-    return TradeAnalysis.analyze(m?.digits || [],selection?.contract || 'OVER',selection?.target ?? 6,minConfidence);
+    return TradeAnalysis.analyze(tradingDigits(m?.digits || []),selection?.contract || 'OVER',selection?.target ?? 6,minConfidence);
 }
 function displayedMarket() {
     const selection=chooseSelection();
@@ -91,21 +138,27 @@ function renderAnalysis(message) {
     selectedCandidate=chooseSelection();
     const active=displayedMarket();
     const preview=selectedCandidate || manualSelection();
-    const a = TradeAnalysis.analyze(active?.digits || [],preview.contract,preview.target,minConfidence);
-    document.getElementById('sample-size').textContent = `${a.size}/100`;
+    const windowSize=turboActive()?turboWindowSize():100;
+    const band=TradeAnalysis.bandRange(minConfidence);
+    const a = TradeAnalysis.analyze(tradingDigits(active?.digits || []),preview.contract,preview.target,minConfidence);
+    document.getElementById('sample-size').textContent = `${a.size}/${windowSize}`;
     document.getElementById('observed-rate').textContent = `${a.frequency.toFixed(1)}%`;
+    // Out-of-band readings are shown as such: the entry will not be prepared.
+    document.getElementById('observed-rate').style.color = TradeAnalysis.inBand(a.frequency,minConfidence) ? '' : '#fb7185';
     document.getElementById('data-source').textContent = active ? `${active.name} · ${active.source==='live'?'Ticks en vivo':active.source==='demo'?'Ticks demo':'Esperando ticks'}` : discoveryStatus;
     document.getElementById('feed-status').textContent=discoveryStatus;
     document.getElementById('data-source').textContent += tradingMode==='auto' && !selectedCandidate ? ' · vista de seguimiento, sin entrada elegida' : '';
     document.getElementById('active-contract').textContent=selectionLabel(selectedCandidate);
     document.getElementById('contract-selection').textContent=selectionLabel(selectedCandidate);
-    const ready=[...marketBook.values()].filter(m=>m.source==='live'&&m.digits.length>=100&&Date.now()-m.lastTickAt<5000).length;
-    document.getElementById('market-coverage').textContent=`${ready}/${marketBook.size} mercados con 100 ticks recientes · ${tradingMode==='auto'?'selección automática':'selección manual'}`;
-    document.getElementById('selection-reason').textContent=tradingMode==='auto'
-        ? selectedCandidate ? `Frecuencia ${a.frequency.toFixed(1)}% · filtro ${minConfidence}% · mayor desviación observada frente a la distribución uniforme. No implica ventaja futura.` : 'Esperando 100 ticks por mercado y una frecuencia que cumpla el filtro. Los datos demo no participan en la selección automática.'
+    const ready=[...marketBook.values()].filter(m=>m.source==='live'&&m.digits.length>=windowSize&&Date.now()-m.lastTickAt<5000).length;
+    document.getElementById('market-coverage').textContent=`${ready}/${marketBook.size} mercados con ${windowSize} ticks recientes · ${tradingMode==='auto'?'selección automática':'selección manual'}`;
+    document.getElementById('selection-reason').textContent=turboActive()
+        ? selectedCandidate ? `Turbo · ${formatStrategy(selectedCandidate)} · frecuencia ${a.frequency.toFixed(1)}% en ${windowSize} ticks · filtro ${minConfidence}% (banda ${band.low}-${band.high}%). No implica ventaja futura.` : `Turbo: esperando ${windowSize} ticks frescos y una frecuencia dentro de la banda ${band.low}-${band.high}%.`
+        : tradingMode==='auto'
+        ? selectedCandidate ? `Frecuencia ${a.frequency.toFixed(1)}% · filtro ${minConfidence}% (banda ${band.low}-${band.high}%) · mayor desviación observada frente a la distribución uniforme. No implica ventaja futura.` : 'Esperando 100 ticks por mercado y una frecuencia que cumpla el filtro. Los datos demo no participan en la selección automática.'
         : `Contrato fijo: ${selectionLabel(manualSelection())}. No se cambia de barrera ni mercado automáticamente.`;
     document.getElementById('digit-bars').innerHTML = a.counts.map((n,d) => `<div class="digit-column"><span>${n}</span><div class="digit-bar" style="height:${a.size ? n / Math.max(...a.counts,1) * 76 : 3}px"></div>${d}</div>`).join('');
-    document.getElementById('analysis-message').textContent = message || (pendingTrade ? `Trade preparado: ${selectionLabel(pendingTrade)} por ${usd(pendingTrade.stake)}. Esperando su siguiente tick.` : !websocketConnected && tradingMode==='auto' ? 'Esperando conexión y ticks en vivo. La selección automática no usa datos demo.' : !['work','chill'].includes(globalOrder) ? 'Operativa pausada. La recepción de ticks y el análisis continúan.' : !selectedCandidate ? `Recibiendo datos. Sin entrada que cumpla el filtro ${minConfidence}% en los mercados preparados.` : !active || Date.now()-active.lastTickAt>5000 ? 'Sin ticks recientes para el mercado seleccionado.' : a.size < 30 ? `Recolectando datos: faltan ${30-a.size} ticks para analizar.` : a.eligible ? 'Filtro de frecuencia cumplido. El próximo ciclo podrá preparar un trade.' : `Entrada descartada: frecuencia ${a.frequency.toFixed(1)}% inferior al filtro ${minConfidence}%.`);
+    document.getElementById('analysis-message').textContent = turboNote() + (message || (pendingTrade ? `Trade preparado: ${selectionLabel(pendingTrade)} por ${usd(pendingTrade.stake)}. Esperando su siguiente tick.` : !websocketConnected && tradingMode==='auto' ? 'Esperando conexión y ticks en vivo. La selección automática no usa datos demo.' : !['work','chill'].includes(globalOrder) ? 'Operativa pausada. La recepción de ticks y el análisis continúan.' : !selectedCandidate ? `Recibiendo datos. Sin entrada que cumpla el filtro ${minConfidence}% en los mercados preparados.` : !active || Date.now()-active.lastTickAt>5000 ? 'Sin ticks recientes para el mercado seleccionado.' : a.size < 30 ? `Recolectando datos: faltan ${30-a.size} ticks para analizar.`        : a.eligible ? 'Frecuencia dentro de la banda. El próximo ciclo podrá preparar un trade.' : `Entrada descartada: frecuencia ${a.frequency.toFixed(1)}% fuera de la banda ${band.low}-${band.high}%.`));
     if(active && active.prices.length) {
         tickSource=active.source;lastTickAt=active.lastTickAt;
         wsPrice=active.quote;currentDigit=active.digits.at(-1);
@@ -143,11 +196,11 @@ function settlePendingTrade(t,digit) {
     result.profit=Math.round(result.profit*100)/100;
     currentBalance = Math.round((currentBalance + result.profit)*100)/100;
     lossStreak=result.won?0:lossStreak+1;
-    tradeHistory.unshift({ id:tradeHistory.length+1,time:new Date().toLocaleTimeString(),agent:`${marketBook.get(t.symbol)?.name || t.symbol} · ${t.source==='live'?'Live':'Demo'} · ${t.mode==='auto'?'Auto':'Manual'}`,symbol:t.symbol,contract:t.contract,target:t.target,multiplier:t.multiplier,type:`${t.contract} ${t.target}`,digitResult:digit,stake:t.stake,confidence:t.frequency,isWon:result.won,payout:result.profit });
+    tradeHistory.unshift({ id:tradeHistory.length+1,time:new Date().toLocaleTimeString(),agent:`${marketBook.get(t.symbol)?.name || t.symbol} · ${t.source==='live'?'Live':'Demo'} · ${t.mode==='turbo'?'Turbo':t.mode==='auto'?'Auto':'Manual'}`,symbol:t.symbol,contract:t.contract,target:t.target,multiplier:t.multiplier,type:`${t.contract} ${t.target}`,digitResult:digit,stake:t.stake,confidence:t.frequency,isWon:result.won,payout:result.profit });
     updateTradeStats();
     renderTradeHistory();
     validationRounds++;
-    addAgentChatMessage(t.executionMode==='direct'?'Carlos':'Sofía', t.executionMode==='direct'?'Resultado · sin tester':'Validación de trade', `${selectionLabel(t)} · dígito ${digit}. Resultado ${result.profit.toFixed(2)} USD; stake ${usd(t.stake)}; frecuencia previa ${t.frequency.toFixed(1)}%.`, result.won ? 'success':'danger','TRADE');
+    addAgentChatMessage(t.executionMode==='direct'?'Carlos':'Sofía', t.executionMode==='direct'?'Resultado · sin tester':'Validación de trade', `${selectionLabel(t)} · dígito ${digit}. Resultado ${result.profit.toFixed(2)} USD; stake ${usd(t.stake)}; frecuencia previa ${t.frequency.toFixed(1)}%.${t.mode==='turbo'&&t.strategy?` Estrategia Turbo: ${formatStrategy(t.strategy)}.`:''}`, result.won ? 'success':'danger',t.mode==='turbo'?'TURBO':'TRADE',t.executionMode==='direct'?'analyst':'tester');
     const person = people.find(p=>p.cfg.id===(t.executionMode==='direct'?'analyst':'tester'));
     if(typeof reactToTrade==='function')reactToTrade(result,t);
     if(person) spawnFloatingMoneyBadge(person.group.position,Math.abs(result.profit),result.won);
@@ -163,23 +216,25 @@ recordTradeOperation = function () {
     if (pendingTrade) reason = 'Ya hay un trade esperando el siguiente tick.';
     else if(balanceEditing) reason='Finaliza la edición del balance antes de abrir un trade.';
     else if(!['work','chill'].includes(globalOrder)) reason = 'Operativa pausada. Selecciona Full Work para habilitar trades.';
-    else if(!selection) reason='Ningún mercado cumple el filtro automático con 100 ticks recientes.';
+    else if(!selection) reason=turboActive()?`Turbo: ningún mercado tiene ${turboWindowSize()} ticks frescos que cumplan el filtro ${minConfidence}%.`:'Ningún mercado cumple el filtro automático con 100 ticks recientes.';
     else if(!market || Date.now()-market.lastTickAt>5000) reason='Sin ticks recientes. Esperando la fuente de datos.';
     else if(market.source==='live'&&!market.types.includes(selection.contract)) reason='Este contrato no está disponible para el mercado seleccionado.';
     else if(selection.contract==='OVER'&&selection.target===9 || selection.contract==='UNDER'&&selection.target===0) reason='Esta barrera no tiene dígitos ganadores. Selecciona otra.';
     else if(a.size<30) reason=`Muestra insuficiente: ${a.size}/30 ticks mínimos.`;
-    else if(!a.eligible) reason=`Sin entrada: frecuencia ${a.frequency.toFixed(1)}% < filtro ${minConfidence}%.`;
+    else if(!TradeAnalysis.inBand(a.frequency,minConfidence)){const range=TradeAnalysis.bandRange(minConfidence);reason=`Fuera de la banda: la frecuencia observada ${a.frequency.toFixed(1)}% está fuera de ${range.low}-${range.high}% con el filtro en ${minConfidence}%.`;}
+    else if(!a.eligible) reason=`Sin entrada: frecuencia ${a.frequency.toFixed(1)}% fuera de la banda ${TradeAnalysis.bandRange(minConfidence).low}-${TradeAnalysis.bandRange(minConfidence).high}%.`;
     else if(!Number.isFinite(stake)||stake<=0||!Number.isFinite(currentBalance)||stake>currentBalance) reason='Entrada bloqueada: el balance debe cubrir el siguiente stake y la martingala debe estar entre x1 y x10.';
     if(reason) { renderAnalysis(reason); feedback(reason); return; }
     if(globalOrder==='work') {
-        const recent=TradeAnalysis.analyze(market.digits.slice(-20),selection.contract,selection.target,minConfidence);
-        if(recent.frequency<minConfidence){const reason=`Tester: entrada descartada; los últimos 20 ticks tienen frecuencia ${recent.frequency.toFixed(1)}% < ${minConfidence}%.`;renderAnalysis(reason);feedback(reason);return;}
+        const recent=TradeAnalysis.analyze(market.digits.slice(-(turboActive()?turboWindowSize():20)),selection.contract,selection.target,minConfidence);
+        const floor=TradeAnalysis.bandRange(minConfidence).low;
+        if(recent.frequency<floor){const reason=`Tester: entrada descartada; los últimos ticks tienen frecuencia ${recent.frequency.toFixed(1)}% por debajo de la banda ${floor}%.`;renderAnalysis(reason);feedback(reason);return;}
     }
     const {contract,target,symbol}=selection;
-    pendingTrade={contract,target,symbol,stake,multiplier:getOverUnderPayoutMultiplier(contract,target),frequency:a.frequency,source:market.source,sequence:market.sequence,preparedAt:Date.now(),mode:tradingMode,executionMode:globalOrder==='chill'?'direct':'tested'};
+    pendingTrade={contract,target,symbol,stake,multiplier:getOverUnderPayoutMultiplier(contract,target),frequency:a.frequency,source:market.source,sequence:market.sequence,preparedAt:Date.now(),mode:turboActive()?'turbo':tradingMode,executionMode:globalOrder==='chill'?'direct':'tested',strategy:turboActive()&&Number.isFinite(selection.strategy)?{strategy:selection.strategy,signals:selection.signals}:null};
     renderAnalysis();
     feedback(globalOrder==='chill'?'Oportunidad: señal del analista preparada sin tester.':'Analista y tester: trade preparado para el siguiente tick.');
-    addAgentChatMessage('Carlos','Análisis estadístico',`${selectionLabel(pendingTrade)} · ${a.size} ticks; frecuencia observada ${a.frequency.toFixed(1)}%. Preparando trade por ${usd(stake)}.`, 'info','TRADE');
+    addAgentChatMessage('Carlos','Análisis estadístico',`${selectionLabel(pendingTrade)} · ${a.size} ticks; frecuencia observada ${a.frequency.toFixed(1)}%.${turboActive()?` Estrategia Turbo: ${formatStrategy(selection)} (ventana de ${a.size} ticks).`:''} Preparando trade por ${usd(stake)}.`, 'info',turboActive()?'TURBO':'TRADE');
 };
 triggerCoherentDocumentHandover = function () { if(['work','chill'].includes(globalOrder) && !pendingTrade) recordTradeOperation(); };
 setupDerivWebSocket = connectMarketFeed;
@@ -225,7 +280,7 @@ function mountContractControls(config) {
         <p id="mode-description" class="fine-print">Opera exclusivamente el mercado y Over/Under seleccionados, si cumplen el filtro.</p><p id="contract-selection" class="fine-print" style="color:var(--cyan);margin-top:8px"></p>
         <fieldset id="manual-contract-fields"><label for="market-select">MERCADO</label><select id="market-select"><option value="R_10">Volatility 10</option></select><div class="risk-grid"><div><label for="contract-type">CONTRATO</label><select id="contract-type"><option value="OVER">DIGIT OVER</option><option value="UNDER">DIGIT UNDER</option></select></div><div><label for="contract-digit">BARRERA</label><select id="contract-digit">${Array.from({length:10},(_,i)=>`<option value="${i}" ${i===6?'selected':''}>${i}</option>`).join('')}</select></div></div></fieldset>
         <div class="filter-heading"><label for="input-confidence">Filtro de frecuencia observada</label><span id="display-confidence">75%</span></div><input type="range" id="input-confidence" min="50" max="99" value="75">
-        <p class="fine-print">El mismo filtro se aplica en ambos modos. Automático usa un motor estadístico, sin un modelo de IA conectado.</p>
+        <p class="fine-print">La entrada solo se prepara si la frecuencia observada cae dentro de ±5 puntos del filtro (${TradeAnalysis.bandRange(minConfidence).low}-${TradeAnalysis.bandRange(minConfidence).high}). El mismo filtro se aplica en todos los modos; Automático usa un motor estadístico, sin un modelo de IA conectado.</p>
         <div class="payout-row"><span>Payout de referencia</span><strong id="estimated-payout"></strong></div>
         <button id="contract-analyze" class="primary-action">Analizar entrada ↗</button><button id="reset-account" class="secondary-action">Restablecer sesión</button>`;
     const balance=document.getElementById('input-balance');

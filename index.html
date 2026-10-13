@@ -9,6 +9,12 @@
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
         <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;800&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
         <style>
+		.glass-panel {
+        background: rgba(3, 7, 18, 0.85);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(56, 189, 248, 0.3);
+        box-shadow: 0 0 30px rgba(56, 189, 248, 0.15);
+    }
             body { font-family: 'Plus Jakarta Sans', sans-serif; overflow: hidden; background: #05070e; color: #f8fafc; }
             .mono { font-family: 'JetBrains Mono', monospace; }
             .receipt-font { font-family: 'Courier Prime', monospace; }
@@ -82,7 +88,7 @@
                     <div>
                         <div id="header-market" class="text-[10px] uppercase font-bold text-slate-400">VOLATILITY 10 · TRADES</div>
                         <div class="flex items-center gap-2">
-                            <button id="turbo-mode-btn" onclick="toggleTurboMode()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-sky-400 font-mono text-xs rounded-xl border border-sky-500/30 transition shadow-lg">
+                            <button id="turbo-mode-btn" onclick="toggleTurboMode()" title="Turbo: velocidad ×3.5, estrategia rápida de ticks y sesgo de simulación en datos demo" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-sky-400 font-mono text-xs rounded-xl border border-sky-500/30 transition shadow-lg">
                                 ⚡ MODO TURBO: OFF
                             </button>
                             <span id="ws-price" class="mono font-bold text-emerald-400 text-sm">--.--</span>
@@ -406,8 +412,8 @@
 
             const windowSpot = new THREE.Vector3(-30, 0, -5);
 
-            let cameraTarget = new THREE.Vector3(0, 2, 0);
-            let cameraSpherical = { radius: 38, theta: Math.PI / 4, phi: Math.PI / 3.2 };
+            let cameraTarget = new THREE.Vector3(0, 1.5, 2);
+            let cameraSpherical = { radius: 72, theta: 0.2, phi: 0.78 };
             let isDragging = false;
             let previousMousePosition = { x: 0, y: 0 };
 
@@ -419,7 +425,14 @@
                 { id: "client2", name: "Elena Rostova", role: "Cliente Fondo", deskPos: new THREE.Vector3(-8, 0, 10), targetPos: new THREE.Vector3(5, 0, 12), topColor: 0x047857, bottomColor: 0x111827, avatar: "fa-user-tie", isClient: true },
                 { id: "client3", name: "Marcos Brody", role: "Auditor Financiero", deskPos: new THREE.Vector3(12, 0, -2), targetPos: new THREE.Vector3(18, 0, -6), topColor: 0x6d28d9, bottomColor: 0x020617, avatar: "fa-user-gear", isClient: true },
                 { id: "client4", name: "Lucía Fernández", role: "Trader Invitada", deskPos: new THREE.Vector3(-18, 0, 6), targetPos: new THREE.Vector3(-5, 0, 8), topColor: 0xbe123c, bottomColor: 0x334155, avatar: "fa-user-astronaut", isClient: true },
-                { id: "client5", name: "Ing. David Chen", role: "Consultor Quant", deskPos: new THREE.Vector3(20, 0, 2), targetPos: new THREE.Vector3(10, 0, -10), topColor: 0xb45309, bottomColor: 0x1e293b, avatar: "fa-user-pen", isClient: true }
+                { id: "client5", name: "Ing. David Chen", role: "Consultor Quant", deskPos: new THREE.Vector3(20, 0, 2), targetPos: new THREE.Vector3(10, 0, -10), topColor: 0xb45309, bottomColor: 0x1e293b, avatar: "fa-user-pen", isClient: true },
+                // Especialistas de sala: cada uno tiene su oficio, su puesto y su pantalla.
+                { id: "over-scout", name: "Nadia 'Rango Bajo'", role: "Lectora 0-3 · OVER", avatar: "fa-arrow-down-short-wide", topColor: 0x0ea5e9, bottomColor: 0x0c4a6e, isClient: false, duty: "over", station: "Ingeniería de estrategias", window: "0-3", contract: "OVER", accent: "#38bdf8" },
+                { id: "under-scout", name: "Iván 'Rango Alto'", role: "Lector 9-7 · UNDER", avatar: "fa-arrow-up-short-wide", topColor: 0xdb2777, bottomColor: 0x831843, isClient: false, duty: "under", station: "Ingeniería de estrategias", window: "7-9", contract: "UNDER", accent: "#f472b6" },
+                { id: "server-ops", name: "Tere 'Uptime'", role: "Operación de Servidores", avatar: "fa-server", topColor: 0x10b981, bottomColor: 0x064e3b, isClient: false, duty: "server", station: "Zona de servidores", accent: "#34d399" },
+                { id: "cyber-ops", name: "Dante 'Blackout'", role: "Ciberseguridad", avatar: "fa-shield-halved", topColor: 0x22d3ee, bottomColor: 0x0e7490, isClient: false, duty: "cyber", station: "Ciberseguridad", accent: "#22d3ee" },
+                { id: "macro-analyst", name: "Mireia 'Macro'", role: "Analista Macroeconómica", avatar: "fa-globe", topColor: 0x6366f1, bottomColor: 0x312e81, isClient: false, duty: "macro", station: "Análisis macroeconómico", accent: "#818cf8" },
+                { id: "admin-ops", name: "Paul 'Papel'", role: "Administración y Recibos", avatar: "fa-file-invoice-dollar", topColor: 0xf59e0b, bottomColor: 0x78350f, isClient: false, duty: "admin", station: "Administración", accent: "#fbbf24" }
             ];
 
             function resetSimulation() {
@@ -502,7 +515,61 @@
                 }
             }
 
-            function addAgentChatMessage(sender, role, text, type = "info", decision = "") {
+            // Etiqueta flotante de lectura de oficio: sube y se desvanece como los importes.
+            function spawnSignalBadge(person, text, accent) {
+                const canvas = document.createElement('canvas');
+                canvas.width = 512;
+                canvas.height = 140;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = 'rgba(6, 16, 28, 0.93)';
+                ctx.beginPath();
+                ctx.roundRect(10, 8, 492, 124, 22);
+                ctx.fill();
+                ctx.strokeStyle = accent || '#7fe8ef';
+                ctx.lineWidth = 6;
+                ctx.stroke();
+                ctx.fillStyle = accent || '#7fe8ef';
+                ctx.font = 'bold 46px "JetBrains Mono", monospace';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(text, 256, 50);
+                ctx.fillStyle = '#cbd5e1';
+                ctx.font = '600 24px "Plus Jakarta Sans", sans-serif';
+                ctx.fillText(String(person.cfg.role).slice(0, 32), 256, 96);
+
+                const texture = new THREE.CanvasTexture(canvas);
+                const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, opacity: 1 }));
+                sprite.position.copy(person.group.position).add(new THREE.Vector3(0, 4.4, 0));
+                sprite.scale.set(4.6, 1.25, 1);
+                scene.add(sprite);
+                floatingBadges.push({ sprite, birthTime: Date.now(), initialY: sprite.position.y });
+            }
+
+            let chatTyping = null;
+            function showTyping(agentId, ms = 900) {
+                chatTyping = agentId;
+                renderAgentChatMessages();
+                setTimeout(() => {
+                    if (chatTyping === agentId) { chatTyping = null; renderAgentChatMessages(); }
+                }, ms);
+            }
+
+            function chatAgentList() {
+                return peopleConfig.map(cfg => ({
+                    ...cfg,
+                    emoji: typeof personaEmoji === 'function' ? personaEmoji(cfg.id) : '💬'
+                }));
+            }
+
+            function agentForMessage(m) {
+                const list = chatAgentList();
+                if (m.agentId) return list.find(a => a.id === m.agentId) || null;
+                return list.find(a => m.sender && a.name.split(' ')[0] === m.sender)
+                    || list.find(a => m.sender && a.name.startsWith(m.sender))
+                    || null;
+            }
+
+            function addAgentChatMessage(sender, role, text, type = "info", decision = "", agentId = "") {
                 const msg = {
                     id: agentChatLog.length + 1,
                     time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
@@ -510,7 +577,8 @@
                     role: role,
                     text: text,
                     type: type,
-                    decision: decision
+                    decision: decision,
+                    agentId: agentId
                 };
                 agentChatLog.unshift(msg);
                 renderAgentChatMessages();
@@ -520,30 +588,65 @@
                 const container = document.getElementById('chat-messages-container');
                 document.getElementById('chat-count').innerText = agentChatLog.length;
 
-                container.innerHTML = agentChatLog.slice().reverse().map(m => {
-                    let badgeBg = "bg-slate-800 text-slate-300";
-                    if (m.type === "success") badgeBg = "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
-                    if (m.type === "danger") badgeBg = "bg-red-500/20 text-red-400 border border-red-500/30";
-                    if (m.type === "warning") badgeBg = "bg-amber-500/20 text-amber-400 border border-amber-500/30";
+                const badgeClass = type => {
+                    if (type === 'success') return 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+                    if (type === 'danger') return 'bg-red-500/20 text-red-300 border border-red-500/30';
+                    if (type === 'warning') return 'bg-amber-500/20 text-amber-300 border border-amber-500/30';
+                    return 'bg-slate-700/40 text-slate-300 border border-white/10';
+                };
+
+                const rows = agentChatLog.slice().reverse().map((m, i, all) => {
+                    const agent = agentForMessage(m);
+                    const accent = agent?.accent || '#94a3b8';
+                    const emoji = agent?.emoji || '💬';
+                    const initials = String(m.sender || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+                    const previous = all[i - 1];
+                    const sameAuthor = previous && previous.sender === m.sender;
+                    const author = String(m.role || '').toLowerCase();
+                    const bubbleTint = m.type === 'success' ? 'rgba(16,185,129,.10)'
+                        : m.type === 'danger' ? 'rgba(239,68,68,.10)'
+                        : m.type === 'warning' ? 'rgba(245,158,11,.10)' : 'rgba(148,163,184,.07)';
 
                     return `
-                        <div class="bg-slate-900/90 p-3 rounded-2xl border border-white/5 space-y-1.5">
-                            <div class="flex justify-between items-center">
-                                <div class="flex items-center gap-1.5">
-                                    <span class="font-extrabold text-white">${m.sender}</span>
-                                    <span class="text-[9px] text-red-400 uppercase font-semibold">(${m.role})</span>
+                        <div class="flex gap-2.5 ${sameAuthor ? 'mt-1' : 'mt-3'} items-end">
+                            ${sameAuthor ? '<div style="width:30px"></div>' : `
+                            <div style="width:30px;height:30px;border-radius:11px;flex:0 0 30px;display:flex;align-items:center;justify-content:center;font-size:14px;background:${accent}22;border:1px solid ${accent}55;color:${accent}">
+                                <span title="${emoji} ${m.sender}">${emoji}</span>
+                            </div>`}
+                            <div style="flex:1;min-width:0">
+                                ${sameAuthor ? '' : `
+                                <div class="flex items-center gap-1.5 mb-1">
+                                    <span class="font-extrabold text-[11px]" style="color:${accent}">${m.sender}</span>
+                                    <span class="text-[9px] text-slate-500 uppercase font-semibold">${m.role}</span>
+                                    <span class="text-[9px] text-slate-600 mono ml-auto">${m.time}</span>
+                                </div>`}
+                                <div style="background:${bubbleTint};border:1px solid rgba(255,255,255,.06);border-left:2px solid ${accent};border-radius:12px;padding:7px 10px">
+                                    <p class="text-slate-200 text-[11px] leading-snug whitespace-pre-wrap">${m.text}</p>
+                                    ${m.decision ? `<div class="mt-1.5 inline-block px-2 py-0.5 rounded-lg text-[9px] font-mono font-bold ${badgeClass(m.type)}">${m.decision}</div>` : ''}
                                 </div>
-                                <span class="text-[9px] text-slate-500 mono">${m.time}</span>
                             </div>
-                            <p class="text-slate-300 font-medium text-[11px] leading-snug">"${m.text}"</p>
-                            ${m.decision ? `
-                                <div class="mt-1 p-1.5 rounded-xl ${badgeBg} text-[10px] font-mono font-bold">
-                                    ➔ Decisión: ${m.decision}
-                                </div>
-                            ` : ''}
-                        </div>
-                    `;
+                        </div>`;
                 }).join('');
+
+                const typing = chatTyping ? (() => {
+                    const agent = chatAgentList().find(a => a.id === chatTyping);
+                    if (!agent) return '';
+                    return `
+                        <div class="flex gap-2.5 mt-3 items-end">
+                            <div style="width:30px;height:30px;border-radius:11px;flex:0 0 30px;display:flex;align-items:center;justify-content:center;font-size:14px;background:${agent.accent}22;border:1px solid ${agent.accent}55;color:${agent.accent}">${agent.emoji}</div>
+                            <div>
+                                <div class="text-[9px] font-bold mb-1" style="color:${agent.accent}">${agent.name} <span class="text-slate-500 uppercase">${agent.role}</span></div>
+                                <div class="flex items-center gap-1 px-3 py-2 rounded-xl" style="background:rgba(148,163,184,.08)">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style="animation-delay:0ms"></span>
+                                    <span class="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style="animation-delay:120ms"></span>
+                                    <span class="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style="animation-delay:240ms"></span>
+                                </div>
+                            </div>
+                        </div>`;
+                })() : '';
+
+                container.innerHTML = typing + rows;
+                if (chatTyping) container.scrollTop = 0;
             }
 
             function toggleAgentChatPanel() {
@@ -1132,14 +1235,14 @@
                 const paperGeo = new THREE.BoxGeometry(0.8, 0.02, 1.0);
                 const paperMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 });
                 const paper = new THREE.Mesh(paperGeo, paperMat);
-                paper.position.set(-1, 3.2, -6);
+                paper.position.set(-7.2, 3.2, -7);
                 paper.castShadow = true;
                 scene.add(paper);
 
                 let t = 0;
                 const animatePaper = () => {
                     t += 0.025;
-                    paper.position.x = THREE.MathUtils.lerp(-1, 14, t);
+                    paper.position.x = THREE.MathUtils.lerp(-7.2, 0, t);
                     paper.position.y = 3.2 + Math.sin(t * Math.PI) * 1.8;
                     if (t < 1) {
                         requestAnimationFrame(animatePaper);
@@ -1239,8 +1342,9 @@
 
             function updateConfidenceValue() {
                 minConfidence = parseInt(document.getElementById('input-confidence').value);
-                document.getElementById('display-confidence').innerText = `${minConfidence}%`;
-                addAgentChatMessage("Sofía 'The Glitch'", "Tester", `Filtro de frecuencia observada ajustado a ${minConfidence}%.`, "warning", "Filtro Actualizado");
+                const bandRange = TradeAnalysis.bandRange(minConfidence);
+                document.getElementById('display-confidence').innerText = `${minConfidence}% · ${bandRange.low}-${bandRange.high}%`;
+                addAgentChatMessage("Sofía 'The Glitch'", "Tester", `Filtro de frecuencia observada ajustado a ${minConfidence}%. Las entradas solo se preparan si la frecuencia observada cae entre ${bandRange.low}% y ${bandRange.high}%.`, "warning", "Filtro Actualizado");
             }
 
             function updateAccountValues() {
@@ -1387,20 +1491,20 @@
             function setCameraView(view) {
                 followedAgent = null;
                 if (view === 'overview') {
-                    cameraTarget.set(0, 2, 0);
-                    cameraSpherical = { radius: 40, theta: 0, phi: Math.PI / 3.2 };
+                    cameraTarget.set(0, 1.5, 2);
+                    cameraSpherical = { radius: 72, theta: 0.2, phi: 0.78 };
                 } else if (view === 'analyst') {
-                    cameraTarget.set(-15, 3, -8);
+                    cameraTarget.set(-7.2, 3, -4.5);
                     cameraSpherical = { radius: 12, theta: Math.PI / 4, phi: Math.PI / 3 };
                 } else if (view === 'tester') {
-                    cameraTarget.set(0, 3, -8);
+                    cameraTarget.set(0, 3, -4.5);
                     cameraSpherical = { radius: 12, theta: 0, phi: Math.PI / 3 };
                 } else if (view === 'manager') {
-                    cameraTarget.set(16, 4, -10);
-                    cameraSpherical = { radius: 14, theta: -Math.PI / 4, phi: Math.PI / 3 };
+                    cameraTarget.set(7.2, 3, -4.5);
+                    cameraSpherical = { radius: 13, theta: -Math.PI / 4, phi: Math.PI / 3 };
                 } else if (view === 'lounge') {
-                    cameraTarget.set(18, 3, 11);
-                    cameraSpherical = { radius: 15, theta: Math.PI / 2, phi: Math.PI / 3 };
+                    cameraTarget.set(21.6, 2.5, 14.4);
+                    cameraSpherical = { radius: 18, theta: Math.PI / 2, phi: Math.PI / 3 };
                 }
                 updateCameraPosition();
             }
@@ -1434,7 +1538,7 @@
                 window.addEventListener('mouseup', () => { isDragging = false; });
 
                 container.addEventListener('wheel', (e) => {
-                    cameraSpherical.radius = Math.max(6, Math.min(65, cameraSpherical.radius + e.deltaY * 0.05));
+                    cameraSpherical.radius = Math.max(6, Math.min(92, cameraSpherical.radius + e.deltaY * 0.05));
                     updateCameraPosition();
                 });
 
@@ -1453,7 +1557,7 @@
                         }
                         if (obj && obj.userData?.person) {
                             selectedAgent = obj.userData.person;
-                            openSidebar(selectedAgent);
+                            openAgentCard(selectedAgent);
                             break;
                         }
                     }
@@ -1461,6 +1565,94 @@
             }
 
             let liveSidebarInterval = null;
+
+            // Ficha flotante anclada al personaje: la información aparece sobre la oficina,
+            // no en el panel lateral, y desde ahí se puede seguir con la cámara.
+            function openAgentCard(person) {
+                selectedAgent = person;
+                let card = document.getElementById('agent-card');
+                if (!card) {
+                    card = document.createElement('div');
+                    card.id = 'agent-card';
+                    card.style.cssText = 'position:absolute;z-index:30;width:252px;pointer-events:none;opacity:0;transition:opacity .18s ease;';
+                    document.getElementById('stage').appendChild(card);
+                }
+                const accent = person.cfg.accent || '#f87171';
+                const duty = person.cfg.duty && typeof officeDuties !== 'undefined' ? officeDuties[person.cfg.duty] : null;
+                const chip = (label, value, color, field) => value
+                    ? `<span ${field ? `data-field="${field}"` : ''} style="display:inline-flex;gap:4px;align-items:center;padding:2px 7px;border-radius:9px;background:${color}18;border:1px solid ${color}44;color:${color};font:700 9px 'JetBrains Mono',monospace;text-transform:uppercase">${label}${value ? ' · ' + value : ''}</span>`
+                    : '';
+                card.dataset.agent = person.cfg.id;
+                card.innerHTML = `
+                    <div style="background:rgba(6,14,26,.95);border:1px solid ${accent}66;border-radius:16px;padding:11px 12px;box-shadow:0 14px 34px rgba(0,0,0,.6);backdrop-filter:blur(10px)">
+                        <div style="display:flex;gap:9px;align-items:center">
+                            <div style="width:34px;height:34px;border-radius:11px;flex:0 0 34px;background:${accent}22;border:1px solid ${accent}55;color:${accent};display:flex;align-items:center;justify-content:center;font-size:15px"><i class="fa-solid ${person.cfg.avatar}"></i></div>
+                            <div style="min-width:0">
+                                <div style="font:800 12.5px 'Plus Jakarta Sans',sans-serif;color:#f8fafc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${person.cfg.name}</div>
+                                <div style="font:700 9.5px 'JetBrains Mono',monospace;color:${accent};text-transform:uppercase">${person.cfg.role}</div>
+                            </div>
+                        </div>
+                        <div style="margin-top:9px;display:flex;flex-wrap:wrap;gap:5px">
+                            ${chip('', person.statusText, accent, 'state')}
+                            ${person.cfg.station ? chip('SALA', person.cfg.station, '#7fe8ef') : ''}
+                            ${duty ? chip('OFICIO', duty.label, duty.accent) : ''}
+                        </div>
+                        <div data-field="reading" style="margin-top:8px;font:600 10px 'JetBrains Mono',monospace;color:#cbd5e1;line-height:1.5"></div>
+                        <div style="margin-top:9px;display:flex;gap:6px;pointer-events:auto">
+                            <button onclick="followAgentCard()" style="flex:1;padding:6px 8px;border-radius:9px;background:${accent};color:#04121f;font:800 10px 'Plus Jakarta Sans',sans-serif">Seguir</button>
+                            <button onclick="stopFollowingAgent();renderAgentCardFields()" style="padding:6px 8px;border-radius:9px;background:rgba(148,163,184,.18);color:#e2e8f0;font:700 10px 'Plus Jakarta Sans',sans-serif">Soltar</button>
+                            <button onclick="closeAgentCard()" style="padding:6px 9px;border-radius:9px;background:rgba(148,163,184,.18);color:#e2e8f0;font:700 10px 'Plus Jakarta Sans',sans-serif">✕</button>
+                        </div>
+                    </div>`;
+                card.style.opacity = '1';
+                updateAgentCard();
+            }
+
+            function closeAgentCard() {
+                const card = document.getElementById('agent-card');
+                if (card) card.style.opacity = '0';
+                selectedAgent = null;
+            }
+
+            function followAgentCard() {
+                if (selectedAgent) followCurrentAgent();
+            }
+
+            function renderAgentCardFields() {
+                const card = document.getElementById('agent-card');
+                const person = selectedAgent;
+                if (!card || !person) return;
+                const field = card.querySelector('[data-field="reading"]');
+                if (!field) return;
+                const reading = person.dutyReading;
+                const duty = person.cfg.duty && typeof officeDuties !== 'undefined' ? officeDuties[person.cfg.duty] : null;
+                field.innerHTML = reading
+                    ? `<span style="color:${duty ? duty.accent : '#7fe8ef'}">${reading.text}</span> · ${reading.message}`
+                    : (duty ? `${duty.label}: esperando la primera lectura.` : 'Sin lecturas asignadas.');
+                const state = card.querySelector('[data-field="state"]');
+                if (state) state.textContent = person.statusText;
+            }
+
+            function updateAgentCard() {
+                const card = document.getElementById('agent-card');
+                const person = selectedAgent;
+                if (!card || !person || card.style.opacity === '0') return;
+                if (card.dataset.agent !== person.cfg.id) openAgentCard(person);
+                const stage = document.getElementById('stage');
+                if (!stage) return;
+                const bounds = stage.getBoundingClientRect();
+                const point = new THREE.Vector3();
+                person.headRoot.getWorldPosition(point);
+                point.y += 1.1;
+                point.project(camera);
+                const x = (point.x * .5 + .5) * bounds.width;
+                const y = (-point.y * .5 + .5) * bounds.height;
+                const inside = point.z < 1 && Math.abs(point.x) < .96 && Math.abs(point.y) < .96;
+                card.style.opacity = inside ? '1' : '0';
+                card.style.left = `${Math.max(8, Math.min(bounds.width - 262, x + 26))}px`;
+                card.style.top = `${Math.max(8, Math.min(bounds.height - 190, y - 120))}px`;
+                renderAgentCardFields();
+            }
 
             openSidebar = function(person) {
                 selectedAgent = person;

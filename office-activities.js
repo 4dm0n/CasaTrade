@@ -132,10 +132,10 @@ mountWorkspace=function(){
 const previousActivityCamera=setCameraView;
 setCameraView=function(view){
     previousActivityCamera(view);
-    if(view==='ping'){followedAgent=null;cameraTarget.set(1,1.7,12);cameraSpherical={radius:15,theta:1,phi:Math.PI/3};feedback('Vista de ping pong. Se juega durante el descanso.');}
+    if(view==='ping'){followedAgent=null;cameraTarget.set(-22.5,1.7,13.5);cameraSpherical={radius:16,theta:1,phi:Math.PI/3};feedback('Vista de ping pong. Se juega durante el descanso.');}
     if(view==='meal'){
         followedAgent=null;const person=people.find(p=>p.activity?.kind==='eat'&&p.group.visible);
-        const pos=person?.rest.position || new THREE.Vector3(16,0,7);
+        const pos=person?.rest.position || new THREE.Vector3(20.1,0,10.6);
         cameraTarget.copy(pos).add(new THREE.Vector3(0,1.7,0));cameraSpherical={radius:7,theta:person?.rest.yaw || 0,phi:Math.PI/2.7};
         feedback('Vista de refrigerio. Algunos integrantes comen durante el descanso.');
     }
@@ -166,14 +166,14 @@ buildPeople=function(){
     }));
     scene.traverse(o=>{if(o.type==='GridHelper'){o.material.transparent=true;o.material.opacity=.17;o.material.depthWrite=false;}});
     // Soft daylight plus warm luminaires: retain contrast instead of washing out surfaces.
-    renderer.toneMappingExposure=1.03;
-    const hemi=scene.children.find(o=>o.isHemisphereLight);if(hemi){hemi.color.set(0xc7def0);hemi.intensity=.95;}
-    scene.children.filter(o=>o.isPointLight).forEach(light=>{light.color.set(0xffe7c6);light.intensity=.85;});
+    renderer.toneMappingExposure=1.14;
+    const hemi=scene.children.find(o=>o.isHemisphereLight);if(hemi){hemi.color.set(0xc7def0);hemi.intensity=1.05;}
+    scene.children.filter(o=>o.isPointLight&&!o.userData.accent).forEach(light=>{light.color.set(0xffe7c6);light.intensity=.85;});
     const sun=scene.children.find(o=>o.isDirectionalLight&&o.castShadow);if(sun){sun.shadow.radius=3;sun.shadow.normalBias=.025;}
     // Court surround and lounge carpet give feet and furniture a readable ground plane.
-    const court=new THREE.Mesh(new THREE.PlaneGeometry(8,13),new THREE.MeshStandardMaterial({color:new THREE.Color('#263d48').convertSRGBToLinear(),roughness:.92,bumpMap:fabric,bumpScale:.005}));
-    court.rotation.x=-Math.PI/2;court.position.set(1,.009,12);court.receiveShadow=true;scene.add(court);
-    const rug=new THREE.Mesh(new THREE.PlaneGeometry(14,11),new THREE.MeshStandardMaterial({color:new THREE.Color('#243642').convertSRGBToLinear(),roughness:1,bumpMap:fabric,bumpScale:.018}));
-    rug.rotation.x=-Math.PI/2;rug.position.set(16,.012,11);rug.receiveShadow=true;scene.add(rug);
+    const court=new THREE.Mesh(new THREE.PlaneGeometry(8,10.5),new THREE.MeshStandardMaterial({color:new THREE.Color('#263d48').convertSRGBToLinear(),roughness:.92,bumpMap:fabric,bumpScale:.005}));
+    court.rotation.x=-Math.PI/2;court.position.set(-22.5,.009,13.25);court.receiveShadow=true;scene.add(court);
+    const rug=new THREE.Mesh(new THREE.PlaneGeometry(13,11),new THREE.MeshStandardMaterial({color:new THREE.Color('#243642').convertSRGBToLinear(),roughness:1,bumpMap:fabric,bumpScale:.018}));
+    rug.rotation.x=-Math.PI/2;rug.position.set(21.6,.012,14.4);rug.receiveShadow=true;scene.add(rug);
     for(const material of [officePalette.cushion,officePalette.edge,officePalette.shell])material.needsUpdate=true;
 };

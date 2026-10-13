@@ -125,10 +125,12 @@ function startOfflineFeed() {
     if(fallbackTimer)return;
     fallbackTimer=setInterval(()=>{
         // Local demo is confined to the selected manual market, never ranked as live.
-        if(tradingMode==='auto') {renderAnalysis();return;}
+        if(tradingMode==='auto' && !(typeof turboActive==='function' && turboActive())) {renderAnalysis();return;}
         const symbol=document.getElementById('market-select').value;
         const m=ensureMarket(symbol);
         if(m.source==='live' && Date.now()-m.lastTickAt<8000)return;
-        receiveTick((m.quote||6452.12)+(Math.random()-.5)*1.8,2,'demo',symbol);
+        const quote=(m.quote||6452.12)+(Math.random()-.5)*1.8;
+        // Turbo biases its own demo tick only; a live feed is never altered.
+        receiveTick(typeof turboBiasQuote==='function'?turboBiasQuote(quote,symbol,2):quote,2,'demo',symbol);
     },1000);
 }

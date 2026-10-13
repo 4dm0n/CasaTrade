@@ -17,7 +17,9 @@ function say(person,text,seconds=4){
 function reactToTrade(result,trade){
     for(const p of people.filter(p=>!p.cfg.isClient&&p.group.visible)){
         p.reaction={won:result.won,until:officeLife.time+3.2};
-        say(p,p.cfg.id==='manager'?`PnL ${usd(result.profit)} · ${result.won?'Buen trabajo, equipo.':'Revisemos esta entrada.'}`:p.cfg.id==='analyst'?`${trade.contract} ${trade.target}: ${result.won?'ganado':'perdido'}.`:trade.executionMode==='direct'?'Entrada directa del analista.':`Resultado comprobado: ${result.won?'ganado':'perdido'}.`);
+        say(p,tradeVoice(p,result,trade));
+        if(typeof addAgentChatMessage==='function'&&p.cfg.duty)
+            addAgentChatMessage(p.cfg.name,p.cfg.role,tradeVoice(p,result,trade),result.won?'success':'danger','REACCIÓN · '+officeDuties[p.cfg.duty].label,p.cfg.id);
     }
 }
 function updateTeamCount(){
@@ -47,7 +49,7 @@ buildRichOfficeArchitecture=function(){
     const hemi=scene.children.find(o=>o.isHemisphereLight);if(hemi)hemi.intensity=1.2;
     // Real luminaires with a diffuser and bounded light pools; only the sun casts shadows.
     const diffuser=new THREE.MeshStandardMaterial({color:0xe5f4ff,emissive:0xc6e5ff,emissiveIntensity:1.5,roughness:.4});
-    for(const [x,z] of [[-17,-10],[0,-10],[17,-10],[-13,8],[16,11],[1,12]]){
+    for(const [x,z] of [[-22.5,-13],[-22.5,2],[0,-11],[0,-3],[22,-13],[22,3]]){
         officeBox(scene,4.2,.15,.7,x,7.1,z,officePalette.edge);
         officeBox(scene,3.9,.04,.55,x,7,z,diffuser);
         for(const dx of [-1.7,1.7])officeCylinder(scene,.018,2.1,x+dx,8.2,z);
@@ -65,7 +67,7 @@ buildRichOfficeArchitecture=function(){
     const texture=new THREE.CanvasTexture(windowCanvas);texture.encoding=THREE.sRGBEncoding;texture.anisotropy=Math.min(4,renderer.capabilities.getMaxAnisotropy());
     const building=new THREE.MeshStandardMaterial({map:texture,roughness:.55,metalness:.3});
     for(let x=-120;x<=120;x+=20)for(let z=-120;z<=120;z+=20){
-        if(Math.abs(x)<42&&Math.abs(z)<35)continue;
+        if(Math.abs(x)<52&&Math.abs(z)<52)continue;
         const h=9+Math.abs((x*13+z*7)%37);
         const mesh=new THREE.Mesh(new THREE.BoxGeometry(11,h,12),building);mesh.position.set(x,h/2-4.8,z);city.add(mesh);
     }
@@ -81,23 +83,24 @@ buildRichOfficeArchitecture=function(){
     officeBox(pivot,.08,.6,.1,2.1,1.9,.12,officePalette.white);officeLife.door=pivot;
     const sign=officeLabel('EXIT / RECEPTION',3,.5);sign.position.set(-24,4.8,20.95);scene.add(sign);
     officeLife.exit=lifeTarget('exit',-24,20,0,'exit');
-    officeLife.boards=[lifeTarget('board-0',-17,-15,Math.PI),lifeTarget('board-1',0,-15,Math.PI),lifeTarget('board-2',17,-15,Math.PI)];
-    officeLife.manager=lifeTarget('manager-visitor',20,-6,-Math.PI/2,'conversation');
-    // Table-tennis court: the player anchors are beyond the two short table ends.
+    officeLife.boards=[lifeTarget('board-0',-8,-16.6,Math.PI),lifeTarget('board-1',0,-16.6,Math.PI),lifeTarget('board-2',8,-16.6,Math.PI)];
+    officeLife.manager=lifeTarget('manager-visitor',11.6,-4.4,-Math.PI/2,'conversation');
+    // Table-tennis court in the west break area: the player anchors sit beyond the two ends.
     const blue=new THREE.MeshStandardMaterial({color:0x125e78,roughness:.72});
-    officeBox(scene,4,.14,6,1,1.52,12,blue);officeBox(scene,4,.016,.045,1,1.602,12,officePalette.white);
-    for(const x of [-.92,2.92])officeBox(scene,.045,.016,5.9,x,1.602,12,officePalette.white);
-    for(const z of [9.05,14.95])officeBox(scene,3.9,.016,.045,1,1.602,z,officePalette.white);
-    for(const x of [-.5,2.5])for(const z of [10,14])officeBox(scene,.12,1.4,.12,x,.72,z,officePalette.edge);
+    const courtX=-22.5,courtZ=13.5;
+    officeBox(scene,4,.14,6,courtX,1.52,courtZ,blue);officeBox(scene,4,.016,.045,courtX,1.602,courtZ,officePalette.white);
+    for(const x of [courtX-1.92,courtX+1.92])officeBox(scene,.045,.016,5.9,x,1.602,courtZ,officePalette.white);
+    for(const z of [courtZ-2.95,courtZ+2.95])officeBox(scene,3.9,.016,.045,courtX,1.602,z,officePalette.white);
+    for(const x of [courtX-1.5,courtX+1.5])for(const z of [courtZ-2,courtZ+2])officeBox(scene,.12,1.4,.12,x,.72,z,officePalette.edge);
     const netCanvas=document.createElement('canvas');netCanvas.width=netCanvas.height=32;
     const netContext=netCanvas.getContext('2d');netContext.strokeStyle='#cedee4';netContext.lineWidth=2;
     netContext.strokeRect(0,0,32,32);
     const netTexture=new THREE.CanvasTexture(netCanvas);netTexture.wrapS=netTexture.wrapT=THREE.RepeatWrapping;netTexture.repeat.set(32,3);
-    const net=new THREE.Mesh(new THREE.PlaneGeometry(4,.38),new THREE.MeshStandardMaterial({map:netTexture,transparent:true,alphaTest:.15,roughness:.9,side:THREE.DoubleSide}));net.position.set(1,1.80,12);scene.add(net);
-    officeBox(scene,4.1,.028,.028,1,1.99,12,officePalette.white,.005);
-    for(const x of [-1.05,3.05])officeCylinder(scene,.025,.45,x,1.80,12,officePalette.edge);
-    officeObstacles.push({minX:-1.5,maxX:3.5,minZ:8.5,maxZ:15.5});
-    officeLife.pingSeats=[lifeTarget('ping-a',1,7.7,0,'ping'),lifeTarget('ping-b',1,16.3,Math.PI,'ping')];
+    const net=new THREE.Mesh(new THREE.PlaneGeometry(4,.38),new THREE.MeshStandardMaterial({map:netTexture,transparent:true,alphaTest:.15,roughness:.9,side:THREE.DoubleSide}));net.position.set(courtX,1.80,courtZ);scene.add(net);
+    officeBox(scene,4.1,.028,.028,courtX,1.99,courtZ,officePalette.white,.005);
+    for(const x of [courtX-2.05,courtX+2.05])officeCylinder(scene,.025,.45,x,1.80,courtZ,officePalette.edge);
+    officeObstacles.push({minX:courtX-2.5,maxX:courtX+2.5,minZ:courtZ-3,maxZ:courtZ+3});
+    officeLife.pingSeats=[lifeTarget('ping-a',courtX,courtZ-3.8,0,'ping'),lifeTarget('ping-b',courtX,courtZ+3.8,Math.PI,'ping')];
     officeLife.ball=new THREE.Mesh(new THREE.SphereGeometry(.095,12,8),new THREE.MeshStandardMaterial({color:0xffeccb,roughness:.45}));officeLife.ball.visible=false;scene.add(officeLife.ball);
     officePalette.cushion.roughness=.95;officePalette.edge.metalness=.65;officePalette.shell.roughness=.5;
 };
@@ -172,6 +175,24 @@ Person3D.prototype.update=function(dt){
             this.statusText=this.reaction.won?'Trade ganado · celebrando':'Trade perdido · revisando';
         }
     }else if(!this.snack.visible)this.headRoot.rotation.x=0;
+    if(this.cfg.duty&&this.isSitting&&!this.reaction&&!this.snack.visible&&!this.paddle.visible){
+        // Cada oficio gesticula distinto mientras trabaja en su sala.
+        const t=officeLife.time*2+this.index;
+        if(this.cfg.duty==='over'||this.cfg.duty==='under'){
+            this.arms[1].root.rotation.x=-1.45+Math.sin(t)*.3;
+            this.arms[1].elbow.rotation.x=-.5+Math.sin(t*.7)*.2;
+            this.headRoot.rotation.y=Math.sin(t*.5)*.12;
+        } else if(this.cfg.duty==='cyber'){
+            this.headRoot.rotation.y=Math.sin(t*.35)*.42;
+        } else if(this.cfg.duty==='admin'){
+            this.arms[0].root.rotation.x=-1.1+Math.abs(Math.sin(t*.9))*-.7;
+            this.arms[0].elbow.rotation.x=-.9+Math.sin(t*1.3)*.25;
+        } else if(this.cfg.duty==='server'){
+            this.headRoot.rotation.x=Math.sin(t*.55)*.13;
+        } else if(this.cfg.duty==='macro'){
+            this.headRoot.rotation.y=-.18+Math.sin(t*.3)*.2;
+        }
+    }
 };
 Person3D.prototype.triggerRandomThought=function(){
     if(this.cfg.isClient)say(this,this.activity?.kind==='board'?'Revisando las estadísticas del tablero.':'Consultando la sesión.',3);
@@ -193,5 +214,118 @@ updateFloatingBadges=function(){
     officeLife.doorTime=Math.max(0,officeLife.doorTime-dt);
     if(officeLife.door)officeLife.door.rotation.y=THREE.MathUtils.lerp(officeLife.door.rotation.y,officeLife.doorTime>0?-Math.PI/2:0,Math.min(1,dt*4));
     if(typeof updateLeisureActivities==='function')updateLeisureActivities(dt);
+    for(const p of people)if(p.cfg.duty&&p.group.visible)dutyTick(p,dt);
     if(officeLife.time>(officeLife.nextCount||0)){officeLife.nextCount=officeLife.time+1;updateTeamCount();}
 };
+
+// ── Oficios por sala: lecturas reales del feed, cada uno con su voz ──────────
+const officeDuties={
+    over:{label:'Rango 0-3 · OVER',accent:'#38bdf8'},
+    under:{label:'Rango 7-9 · UNDER',accent:'#f472b6'},
+    server:{label:'Racks y latencia',accent:'#34d399'},
+    cyber:{label:'Perímetro y anomalías',accent:'#22d3ee'},
+    macro:{label:'Sesgo macro',accent:'#818cf8'},
+    admin:{label:'Recibos y cierres',accent:'#fbbf24'}
+};
+const officePersonas={
+    analyst:{emoji:'📈',tone:'técnico y directo'},
+    tester:{emoji:'🧪',tone:'escéptico, exige muestras'},
+    manager:{emoji:'🎩',tone:'institucional, habla del equipo'},
+    over:{emoji:'🔵',tone:'metódico, cita su rango'},
+    under:{emoji:'🔴',tone:'impaciente, cita su rango'},
+    server:{emoji:'🛠️',tone:'operativo, habla de latencia'},
+    cyber:{emoji:'🛡️',tone:'paranoico, vigila anomalías'},
+    macro:{emoji:'🌍',tone:'académico, contexto global'},
+    admin:{emoji:'🧾',tone:'burócrata, cuadra cuentas'},
+    client:{emoji:'💼',tone:'formal, pregunta por su capital'}
+};
+function personaKey(person){
+    const id=typeof person==='string'?person:person?.cfg?.id;
+    if(!id)return 'macro';
+    if(id.startsWith('client'))return 'client';
+    if(id==='analyst')return 'analyst';
+    if(id==='tester')return 'tester';
+    if(id==='manager')return 'manager';
+    if(id==='over-scout')return 'over';
+    if(id==='under-scout')return 'under';
+    if(id==='server-ops')return 'server';
+    if(id==='cyber-ops')return 'cyber';
+    if(id==='macro-analyst')return 'macro';
+    if(id==='admin-ops')return 'admin';
+    return 'macro';
+}
+function personaEmoji(person){return officePersonas[personaKey(person)].emoji;}
+function tradingMarket(){
+    if(typeof marketBook==='undefined')return null;
+    return [...marketBook.values()].find(m=>m.digits.length>=10)||null;
+}
+function dutyReading(person){
+    const market=tradingMarket();
+    const digits=market?market.digits.slice(-30):[];
+    const prices=market?market.prices.slice(-35):[];
+    const duty=person.cfg.duty;
+    if(duty==='over'||duty==='under'){
+        const low=duty==='over'?0:7,high=duty==='over'?3:9,barrier=duty==='over'?3:7;
+        const inside=digits.filter(d=>d>=low&&d<=high).length;
+        const pct=digits.length?Math.round(inside/digits.length*100):0;
+        return {text:`${pct}% en ${low}-${high}`,alert:pct>=45&&pct<=55,
+            message:`Ventana ${low}-${high}: ${pct}% de las últimas ${digits.length} lecturas. ${pct>=40?`Mantengo ${person.cfg.contract} ${barrier} en vigilancia.`:`Rango frío: no fuerzo ${person.cfg.contract} ${barrier}.`}`};
+    }
+    if(duty==='server'){
+        const age=market?Math.max(0,Date.now()-market.lastTickAt):0;
+        const latency=(age/1000).toFixed(1);
+        return {text:`latencia ${latency}s`,alert:age>3500,
+            message:age>3500?`Latencia ${latency}s en el feed: reviso el enlace antes de que se caiga la muestra.`:`Latencia ${latency}s y ${digits.length} lecturas estables en los racks.`};
+    }
+    if(duty==='cyber'){
+        const counts=Array(10).fill(0);digits.forEach(d=>counts[d]++);
+        const expected=digits.length/10||1;
+        const deviation=Math.max(...counts.map(c=>Math.abs(c-expected)));
+        const risky=deviation>expected*.6;
+        return {text:`desvío ${deviation.toFixed(1)}`,alert:risky,
+            message:risky?`Desviación de ${deviation.toFixed(1)} ticks sobre lo uniforme: perímetro bajo revisión.`:`Desviación de ${deviation.toFixed(1)} ticks sobre lo uniforme. Perímetro estable en ${digits.length} lecturas.`};
+    }
+    if(duty==='macro'){
+        const first=prices[0],last=prices.at(-1);
+        const drift=first?((last-first)/first*100):0;
+        const bias=digits.filter(d=>d>=5).length;
+        return {text:`${drift>=0?'+':''}${drift.toFixed(3)}%`,drift,
+            message:`Sesión ${drift>=0?'+':''}${drift.toFixed(3)}% en ${prices.length} ticks, con ${bias} lecturas altas en la ventana. Contexto ${Math.abs(drift)>.05?'con impulso':'lateral'}.`};
+    }
+    if(duty==='admin'){
+        const wins=tradeHistory.filter(t=>t.isWon).length;
+        const pnl=tradeHistory.reduce((sum,t)=>sum+t.payout,0);
+        return {text:`${tradeHistory.length} cerrados`,alert:pnl<0,
+            message:`${tradeHistory.length} contratos cerrados y ${wins} a favor. Balance de sesión ${usd(pnl)}; cuadro los recibos.`};
+    }
+    return null;
+}
+function tradeVoice(person,result,trade){
+    const key=personaKey(person);
+    if(key==='manager')return result.won?`PnL ${usd(result.profit)}: buena ejecución, equipo.`:`PnL ${usd(result.profit)}. Revisemos esta entrada sin dramatizar.`;
+    if(key==='analyst')return result.won?`${trade.contract} ${trade.target} entró limpio con el dígito ${trade.digitResult??''}.`:`${trade.contract} ${trade.target} falló; recalibro el filtro.`;
+    if(key==='tester')return trade.executionMode==='direct'?'Esta entrada fue directa del analista: no la validé yo.':result.won?'Muestra comprobada y ganada.':'Muestra comprobada y perdida; la anoto.';
+    if(key==='over')return result.won?`Mi rango 0-3 aguantó: ${trade.contract} ${trade.target} a favor.`:`El rango 0-3 no se sostuvo en ${trade.contract} ${trade.target}.`;
+    if(key==='under')return result.won?`Rango 7-9 confirmado: ${trade.contract} ${trade.target} pagado.`:`Rango 7-9 flojo; el ${trade.contract} ${trade.target} se fue.`;
+    if(key==='server')return `Racks sin incidencias; el contrato cerró en ${result.won?'verde':'rojo'}.`;
+    if(key==='cyber')return result.won?'Sin anomalías en la ejecución.':'Anomalía registrada en el cierre; reviso el registro.';
+    if(key==='macro')return result.won?'El sesgo macro acompañó la entrada.':'El sesgo macro iba en contra; lo anoto.';
+    if(key==='admin')return `Recibo ${result.won?'a favor':'con pérdida'} archivado: ${usd(result.profit)}.`;
+    return result.won?'Cerrado a favor.':'Cerrado con pérdida.';
+}
+function dutyTick(person,dt){
+    if(!person.cfg.duty||!person.isSitting)return;
+    if(person.dutyTimer===undefined)person.dutyTimer=5+Math.random()*7;
+    person.dutyTimer-=dt;
+    if(person.dutyTimer>0)return;
+    person.dutyTimer=11+Math.random()*11;
+    const reading=dutyReading(person);
+    if(!reading)return;
+    person.dutyReading=reading;
+    say(person,reading.message,5.5);
+    person.reaction=null;
+    const duty=officeDuties[person.cfg.duty];
+    if(typeof spawnSignalBadge==='function')spawnSignalBadge(person,reading.text,duty.accent);
+    if(typeof addAgentChatMessage==='function')
+        addAgentChatMessage(person.cfg.name,person.cfg.role,reading.message,reading.alert?'warning':'info',`LECTURA · ${duty.label}`,person.cfg.id);
+}
